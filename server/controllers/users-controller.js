@@ -38,15 +38,16 @@ const login = async (req, res, next) => {
 
     if (!user) {
       await logAuditEvent({
-        accountId: user.account_id,
-        initiatorAccountId: user.account_id,
-        initiatorEmail: user.email,
-        actorEmail: user.email,
+        accountId: null,
+        initiatorAccountId: null,
+        initiatorEmail: email,
+        actorEmail: email,
         action: "login",
         targetEntity: email,
         status: "fail",
         metadata: { reason: "user_not_found", ip },
       });
+
       return res.status(401).json({
         message: "Invalid email or password.",
         code: "USER_NOT_FOUND",
