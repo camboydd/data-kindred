@@ -4,6 +4,26 @@ import { connectToSnowflake } from "../util/snowflake-connection.js";
 export const getUserByEmail = async (email) => {
   try {
     const connection = await connectToSnowflake();
+    connection.execute({
+      sqlText: `
+        SELECT
+          CURRENT_ACCOUNT() AS account,
+          CURRENT_REGION() AS region,
+          CURRENT_ROLE() AS role,
+          CURRENT_DATABASE() AS database,
+          CURRENT_SCHEMA() AS schema
+      `,
+      complete: (err, stmt, rows) => {
+        if (err) {
+          console.error(
+            "❌ Failed to log Snowflake session context:",
+            err.message
+          );
+        } else {
+          console.log("🔍 Snowflake session context:", rows[0]);
+        }
+      },
+    });
 
     const sql = `
       SELECT * FROM KINDRED.PUBLIC.USERS WHERE LOWER(EMAIL) = LOWER(?) LIMIT 1;

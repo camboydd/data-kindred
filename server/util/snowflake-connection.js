@@ -49,20 +49,6 @@ const connectToSnowflake = () => {
     }
 
     connection = createNewConnection();
-    connection.execute({
-      sqlText:
-        "SELECT CURRENT_ACCOUNT(), CURRENT_REGION(), CURRENT_ROLE(), CURRENT_DATABASE(), CURRENT_SCHEMA()",
-      complete: (err, stmt, rows) => {
-        if (err) {
-          console.error(
-            "❌ Failed to log Snowflake session context:",
-            err.message
-          );
-        } else {
-          console.log("🔍 Snowflake session context:", rows[0]);
-        }
-      },
-    });
 
     connection.connect((err, conn) => {
       if (err) {
