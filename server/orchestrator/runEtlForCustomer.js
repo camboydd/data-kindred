@@ -108,7 +108,7 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
   const result = await axios.post(
-    "https://your-etl-service.onrender.com/run-etl",
+    "https://data-kindred-etl-service.onrender.com/run-etl",
     {
       connectorId,
       accountId,
