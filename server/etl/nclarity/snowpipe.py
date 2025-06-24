@@ -78,7 +78,7 @@ from(bucket: "devices_telemetry_15m")
 |> sort(columns:["_time"])
 '''
 }
-
+#test
 
 @retry_request(retries=3)
 async def fetch_telemetry(client, device_id, query_type, start, end):
