@@ -9,8 +9,6 @@ import requests
 import httpx
 import asyncio
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 etl_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if etl_root not in sys.path:
@@ -98,8 +96,8 @@ def serialize_to_parquet(records, output_path):
         df = pd.DataFrame(records)
         if df.empty:
             return False
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, output_path)
+        df.to_parquet(output_path, engine="fastparquet", index=False)
+
         return True
     except Exception as e:
         queue_error_message("Parquet Serialization Error", str(e))
