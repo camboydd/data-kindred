@@ -18,11 +18,13 @@ const verifyCaptcha = async (token) => {
   );
   return response.data.success;
 };
-
 const login = async (req, res, next) => {
   let { email, password } = req.body;
 
+  console.log("[LOGIN] Received login request:", { email });
+
   if (!email || !password) {
+    console.warn("[LOGIN] Missing credentials");
     return res.status(422).json({
       success: false,
       message: "Email and password are required.",
@@ -34,9 +36,12 @@ const login = async (req, res, next) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
   try {
+    console.log("[LOGIN] Looking up user by email:", email);
     const user = await getUserByEmail(email);
+    console.log("[LOGIN] User lookup result:", user);
 
     if (!user) {
+      console.warn("[LOGIN] No user found with email:", email);
       await logAuditEvent({
         accountId: null,
         initiatorAccountId: null,
@@ -54,9 +59,20 @@ const login = async (req, res, next) => {
       });
     }
 
+    if (!user.account_id) {
+      console.error("[LOGIN] User has no account_id! Failing login.");
+      return res.status(500).json({
+        message: "User misconfiguration (missing account ID).",
+        code: "MISSING_ACCOUNT_ID",
+      });
+    }
+
+    console.log("[LOGIN] Checking password for user:", user.email);
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    console.log("[LOGIN] Password match result:", isValidPassword);
 
     if (!isValidPassword) {
+      console.warn("[LOGIN] Invalid password for:", user.email);
       await logAuditEvent({
         accountId: user.account_id,
         initiatorAccountId: user.account_id,
@@ -67,12 +83,14 @@ const login = async (req, res, next) => {
         status: "fail",
         metadata: { reason: "invalid_password", ip },
       });
+
       return res.status(401).json({
         message: "Invalid email or password.",
         code: "INVALID_PASSWORD",
       });
     }
 
+    console.log("[LOGIN] Password validated. Signing JWT...");
     const token = jwt.sign(
       {
         userId: user.id,
@@ -84,6 +102,7 @@ const login = async (req, res, next) => {
       { expiresIn: "1h" }
     );
 
+    console.log("[LOGIN] JWT generated. Setting cookie...");
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -91,6 +110,7 @@ const login = async (req, res, next) => {
       maxAge: 3600000,
     });
 
+    console.log("[LOGIN] Logging success audit event...");
     await logAuditEvent({
       accountId: user.account_id,
       initiatorAccountId: user.account_id,
@@ -102,6 +122,7 @@ const login = async (req, res, next) => {
       metadata: { ip },
     });
 
+    console.log("[LOGIN] Returning success response.");
     res.status(200).json({
       message: "Login successful",
       token,
@@ -112,7 +133,7 @@ const login = async (req, res, next) => {
       },
     });
   } catch (err) {
-    console.error("Login error:", err);
+    console.error("[LOGIN] Unexpected error during login:", err);
     return next(new HttpError("Unexpected login error.", 500));
   }
 };
