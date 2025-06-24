@@ -5,7 +5,11 @@ import crypto from "crypto";
 import { insertManualSyncLog } from "../util/manualSyncLogger.js";
 import { connectToSnowflake } from "../util/snowflake-connection.js";
 
-export async function runEtlForCustomer(connectorId, accountId, options = {}) {
+export async function runEtlForCustomerOld(
+  connectorId,
+  accountId,
+  options = {}
+) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
   const scripts = ["metadata.py", "snowpipe.py"];
@@ -97,4 +101,25 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
     accountId,
     rowCount: totalRows,
   };
+}
+import axios from "axios";
+
+export async function runEtlForCustomer(connectorId, accountId, options = {}) {
+  const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
+
+  const result = await axios.post(
+    "https://your-etl-service.onrender.com/run-etl",
+    {
+      connectorId,
+      accountId,
+      refreshWindow,
+      manualSyncId,
+    }
+  );
+
+  if (result.data.status !== "success") {
+    throw new Error("ETL failed: " + JSON.stringify(result.data));
+  }
+
+  return { connectorId, accountId };
 }
