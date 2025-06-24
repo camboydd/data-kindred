@@ -8,8 +8,27 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
   const scripts = ["metadata.py", "snowpipe.py"];
-  const scriptPath = (name) =>
-    path.join(process.cwd(), "etl", connectorId, name);
+  const scriptPath = (name) => {
+    // Check if the script exists at ./etl/... (local dev)
+    const localPath = path.join(process.cwd(), "etl", connectorId, name);
+    const serverPath = path.join(
+      process.cwd(),
+      "server",
+      "etl",
+      connectorId,
+      name
+    );
+
+    if (fs.existsSync(localPath)) {
+      return localPath;
+    } else if (fs.existsSync(serverPath)) {
+      return serverPath;
+    } else {
+      throw new Error(
+        `Script not found in either path: ${localPath} or ${serverPath}`
+      );
+    }
+  };
 
   const runScript = (scriptName) => {
     return new Promise((resolve, reject) => {
