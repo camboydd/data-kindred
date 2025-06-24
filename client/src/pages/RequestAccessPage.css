@@ -1,0 +1,176 @@
+.request-form-section {
+    padding: 6rem 2rem 4rem;
+    background-color: #f8fafc; /* Let gradient show through */
+    display: flex;
+    justify-content: center;
+  }
+  
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0rem;
+    align-items: center;
+    max-width: 1100px;
+    width: 100%;
+    padding: 0 1rem;
+  }
+  
+  @media (min-width: 768px) {
+    .form-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .form-left {
+    padding: 1rem;
+  }
+  
+  /* Card container with tighter spacing and softer shadow */
+  .access-form-wrapper {
+    background: #ffffff;
+    border-radius: 1rem;
+    padding: 2rem 2rem 2.5rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+    max-width: 500px;
+    width: 100%;
+    margin: 0 auto;
+    border: 1px solid #e2e8f0;
+  }
+  
+  .access-form {
+    width: 100%;
+  }
+  
+  .access-form input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #d1d5db;
+    font-size: 1rem;
+    background-color: #f9fafb;
+    color: #0f172a;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  
+  .access-form input:focus {
+    outline: none;
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
+  }
+  
+  .access-form .btn-primary {
+    width: 100%;
+    font-size: 1rem;
+    padding: 0.9rem 1rem;
+    background-color: #14b8a6;
+    color: #ffffff;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .access-form .btn-primary:hover {
+    background-color: #0d9488;
+  }
+  
+  .success-message {
+    background-color: #ecfdf5;
+    color: #065f46;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #d1fae5;
+    font-size: 0.95rem;
+    text-align: center;
+  }
+  
+  .error-message {
+    color: #dc2626;
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+  }
+  
+  /* Right-side image on desktop only */
+  .form-right {
+    display: none;
+  }
+  
+  @media (min-width: 768px) {
+    .form-right {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 1rem;
+    }
+  
+    .form-image {
+      max-width: 90%;
+      height: auto;
+      border-radius: 1rem;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+    }
+  }
+  
+  .webpage-navbar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(10px);
+    padding: 1rem 0;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    animation: fadeInDown 0.6s ease forwards;
+  }
+  
+  .navbar-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .nav-toggle-button {
+    background-color: #111;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .form-left,
+.form-right {
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.kindred-logo-icon {
+    height: 28px;
+    width: 28px;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+  
+  .navbar-logo {
+    display: flex;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: white;
+  }
+  

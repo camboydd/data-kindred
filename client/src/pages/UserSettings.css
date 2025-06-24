@@ -1,0 +1,162 @@
+.user-settings-page {
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #f8fafc, #f1f5f9);
+  display: flex;
+}
+
+.user-settings-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+  flex: 1;
+}
+
+.settings-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: #0f172a;
+  text-align: center;
+}
+
+.settings-subtitle {
+  font-size: 1rem;
+  color: #475569;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.settings-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.settings-card label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-card input {
+  margin-top: 6px;
+  padding: 10px;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.settings-card input:focus {
+  border-color: #4f46e5;
+}
+
+.settings-card button {
+  margin-top: 8px;
+  background-color: #4f46e5;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.settings-card button:hover {
+  background-color: #4338ca;
+}
+
+.settings-status {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+}
+.dashboard-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.section-icon {
+  width: 20px;
+  height: 20px;
+  color: #4f46e5;
+}
+
+.connectors-subtitle {
+  font-size: 1rem;
+  color: #475569;
+  margin-bottom: 2rem;
+}
+
+/* Header styling (already used in ConnectorsPage) */
+.dashboard-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.section-icon {
+  width: 20px;
+  height: 20px;
+  color: #4f46e5;
+}
+
+.connectors-subtitle {
+  font-size: 1rem;
+  color: #475569;
+  margin-bottom: 2rem;
+}
+
+/* Spinner for button */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status message colors */
+.settings-status {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-top: 12px;
+}
+
+.settings-status.success {
+  color: #047857;
+}
+
+.settings-status.error {
+  color: #b91c1c;
+}
+
+.settings-status.info {
+  color: #374151;
+}
+.email-display p{
+margin-bottom: 0 !important;
+}

@@ -1,0 +1,80 @@
+import path from "path";
+import { spawn } from "child_process";
+import crypto from "crypto";
+import { insertManualSyncLog } from "../util/manualSyncLogger.js";
+import { connectToSnowflake } from "../util/snowflake-connection.js";
+
+export async function runEtlForCustomer(connectorId, accountId, options = {}) {
+  const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
+
+  const scripts = ["metadata.py", "snowpipe.py"];
+  const scriptPath = (name) =>
+    path.join(process.cwd(), "etl", connectorId, name);
+
+  const runScript = (scriptName) => {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const fullPath = scriptPath(scriptName);
+      let rowCount = 0;
+
+      const env = {
+        ...process.env,
+        MANUAL_SYNC_ID: manualSyncId,
+        REFRESH_WINDOW: refreshWindow,
+        PYTHONPATH: path.join(process.cwd()),
+      };
+
+      const child = spawn("python3", [fullPath, accountId], { env });
+
+      child.stdout.on("data", (data) => {
+        const line = data.toString();
+        console.log(`[stdout][${connectorId}] ${line}`);
+        const match = line.match(/ROW_COUNT=(\d+)/);
+        if (match) rowCount = parseInt(match[1], 10);
+      });
+
+      child.stderr.on("data", (data) => {
+        console.error(`[stderr][${connectorId}] ${data}`);
+      });
+
+      child.on("close", async (code) => {
+        const duration = (Date.now() - start) / 1000;
+        const connection = await connectToSnowflake();
+
+        try {
+          await insertManualSyncLog({
+            connection,
+            id: manualSyncId,
+            accountId,
+            connectorId,
+            refreshWindow,
+            status: code === 0 ? "success" : "error",
+            rowCount,
+            durationSeconds: duration,
+            errorMessage: code === 0 ? null : `Script exited with code ${code}`,
+          });
+        } catch (err) {
+          console.error("❌ Failed to insert sync log:", err);
+        } finally {
+          connection.destroy();
+        }
+
+        if (code === 0) {
+          resolve(rowCount);
+        } else {
+          reject(new Error(`${scriptName} failed with code ${code}`));
+        }
+      });
+    });
+  };
+
+  // Run all scripts in parallel
+  const counts = await Promise.all(scripts.map(runScript));
+  const totalRows = counts.reduce((a, b) => a + b, 0);
+
+  return {
+    connectorId,
+    accountId,
+    rowCount: totalRows,
+  };
+}
