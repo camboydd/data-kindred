@@ -121,5 +121,10 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
     throw new Error("ETL failed: " + JSON.stringify(result.data));
   }
 
-  return { connectorId, accountId };
+  return {
+    connectorId,
+    accountId,
+    syncedAt: result.data.completedAt ?? new Date().toISOString(),
+    rowCount: result.data.rowCount ?? null,
+  };
 }
