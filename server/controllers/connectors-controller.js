@@ -702,7 +702,7 @@ export const triggerManualSync = async (req, res, next) => {
   const connection = await connectToSnowflake();
   const manualSyncId = crypto.randomUUID();
   const startTime = Date.now();
-  const nowUtc = new Date().toISOString(); // Consistent UTC timestamp
+  const nowUtc = new Date(); // single UTC date instance
 
   try {
     // 1. Log sync start
@@ -734,7 +734,7 @@ export const triggerManualSync = async (req, res, next) => {
     }
 
     const durationSeconds = (Date.now() - startTime) / 1000;
-    const completedAtUtc = new Date().toISOString();
+    const completedAtUtc = new Date();
 
     // 3. Update log as success
     await executeQuery(
@@ -755,11 +755,11 @@ export const triggerManualSync = async (req, res, next) => {
       message: "Manual sync complete",
       syncId: manualSyncId,
       rowCount: result.rowCount,
-      syncedAt: completedAtUtc,
+      syncedAt: completedAtUtc.toISOString(),
     });
   } catch (err) {
     console.error("❌ Manual sync failed:", err);
-    const errorTimeUtc = new Date().toISOString();
+    const errorTimeUtc = new Date();
 
     // 4. On error fallback logging
     await executeQuery(
