@@ -167,6 +167,10 @@
     color: #555;
     margin-left: 8px;
   }
+  .status-badge.status-partial_success {
+    background-color: orange;
+    color: white;
+  }
   
   .error-message {
     color: #b00020;

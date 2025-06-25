@@ -46,7 +46,12 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
 
   useEffect(() => {
     const latestSuccessful = logs
-      ?.filter((log) => log.status === "success" && log.completedAt)
+      ?.filter(
+        (log) =>
+          (log.status === "success" || log.status === "partial_success") &&
+          log.completedAt
+      )
+
       .sort(
         (a, b) =>
           new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -169,6 +174,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
             ? lastRowCount
             : "N/A"}
         </p>
+
         {lastErrorMessage && (
           <p className="sync-warning">⚠️ {lastErrorMessage}</p>
         )}
