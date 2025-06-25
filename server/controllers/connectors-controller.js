@@ -144,6 +144,9 @@ export const getConnectorStatus = async (req, res, next) => {
 
         const body = await response.text();
         const sessionKey = parseSessionResponseXML(body);
+        if (!sessionKey) {
+          console.warn("⚠️ Sage XML:", body); // add this
+        }
 
         if (sessionKey) {
           return res.status(200).json({ [connectorId]: "connected" });
@@ -347,16 +350,26 @@ export const testConnectorConnection = async (req, res, next) => {
     const { companyId, userId, senderId, userPassword, senderPassword } =
       sourceCredentials;
 
-    if (
-      !companyId ||
-      !userId ||
-      !senderId ||
-      !userPassword ||
-      !senderPassword
-    ) {
+    const missingFields = [];
+    if (!companyId?.trim()) missingFields.push("companyId");
+    if (!userId?.trim()) missingFields.push("userId");
+    if (!senderId?.trim()) missingFields.push("senderId");
+    if (!userPassword?.trim()) missingFields.push("userPassword");
+    if (!senderPassword?.trim()) missingFields.push("senderPassword");
+
+    console.log("🧪 Received Sage credentials:", {
+      companyId,
+      userId,
+      senderId,
+      userPassword,
+      senderPassword,
+    });
+
+    if (missingFields.length > 0) {
+      console.warn("❌ Missing Sage credentials:", missingFields);
       return res.status(400).json({
         success: false,
-        message: "Missing required Sage Intacct credentials.",
+        message: `Missing required fields: ${missingFields.join(", ")}`,
       });
     }
 
@@ -368,6 +381,8 @@ export const testConnectorConnection = async (req, res, next) => {
         userPassword,
         senderPassword,
       });
+
+      console.log("📨 Built Sage login XML:", xml);
 
       const response = await fetch(
         "https://api.intacct.com/ia/xml/xmlgw.phtml",
@@ -381,20 +396,26 @@ export const testConnectorConnection = async (req, res, next) => {
       );
 
       const body = await response.text();
+      console.log("🧾 Sage raw XML response:", body);
+
       const sessionKey = parseSessionResponseXML(body);
 
       if (sessionKey) {
+        console.log("✅ Sage connection test succeeded with sessionKey.");
         return res.status(200).json({ success: true });
       } else {
-        return res
-          .status(400)
-          .json({ success: false, message: "Invalid Sage credentials." });
+        console.warn("⚠️ Sage connection failed: no session key extracted.");
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Sage credentials.",
+        });
       }
     } catch (err) {
       console.error("❌ Sage Intacct connection test failed:", err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Sage test failed." });
+      return res.status(500).json({
+        success: false,
+        message: "Sage test failed.",
+      });
     }
   }
 
@@ -439,6 +460,7 @@ export const testConnectorConnection = async (req, res, next) => {
     });
   }
 };
+
 export const getAllConnectorStatuses = async (req, res, next) => {
   const accountId = req.query.accountId;
 

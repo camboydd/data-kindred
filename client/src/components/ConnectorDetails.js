@@ -11,7 +11,13 @@ const REFRESH_OPTIONS = [
   { label: "Full refresh 🔒", value: "full", adminOnly: true },
 ];
 
-const ConnectorDetails = ({ connector, logs, user, onRefreshLogs }) => {
+const ConnectorDetails = ({
+  connector,
+  logs,
+  user,
+  onRefreshLogs,
+  logsLoading,
+}) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedRange, setSelectedRange] = useState("7d");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +40,11 @@ const ConnectorDetails = ({ connector, logs, user, onRefreshLogs }) => {
       });
     }
   }, [logs]);
+
+  useEffect(() => {
+    setLastSync({ time: null, rows: null, error: null });
+    setActiveTab("overview"); // optional: reset tab to overview on change
+  }, [connector?.connectorId]);
 
   const handleManualSync = async () => {
     setIsLoading(true);
@@ -97,9 +108,9 @@ const ConnectorDetails = ({ connector, logs, user, onRefreshLogs }) => {
     return <div className="details-panel">Select a connector</div>;
 
   return (
-    <div className="details-panel">
+    <div className="details-panel" key={connector.connectorId}>
       <div className="connector-header">
-        <h1>{connector.connectorId}</h1>
+        <h1>{connector.name || connector.connectorId}</h1>
         <div className="sync-controls">
           <select
             value={selectedRange}
@@ -190,7 +201,7 @@ const ConnectorDetails = ({ connector, logs, user, onRefreshLogs }) => {
                 </tbody>
               </table>
             ) : (
-              <p>No logs found.</p>
+              <p className="empty-state">No logs found.</p>
             )}
           </div>
         )}

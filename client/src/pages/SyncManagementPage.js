@@ -8,9 +8,11 @@ const SyncManagementPage = () => {
   const [connectors, setConnectors] = useState([]);
   const [selectedConnectorId, setSelectedConnectorId] = useState(null);
   const [logsMap, setLogsMap] = useState({});
+  const [logsLoadingMap, setLogsLoadingMap] = useState({});
   const { user, authLoading } = useAuth();
 
   const fetchLogsForConnector = async (connectorId) => {
+    setLogsLoadingMap((prev) => ({ ...prev, [connectorId]: true }));
     try {
       const res = await fetch(
         `/api/connectors/sync/manual/logs?connectorId=${connectorId}&accountId=${user?.accountId}`,
@@ -23,6 +25,12 @@ const SyncManagementPage = () => {
       }));
     } catch (err) {
       console.warn(`Failed to fetch logs for ${connectorId}`, err);
+      setLogsMap((prev) => ({
+        ...prev,
+        [connectorId]: [],
+      }));
+    } finally {
+      setLogsLoadingMap((prev) => ({ ...prev, [connectorId]: false }));
     }
   };
 
@@ -48,12 +56,17 @@ const SyncManagementPage = () => {
   }, [user, authLoading]);
 
   useEffect(() => {
-    if (selectedConnectorId) fetchLogsForConnector(selectedConnectorId);
+    if (selectedConnectorId) {
+      fetchLogsForConnector(selectedConnectorId);
+    }
   }, [selectedConnectorId]);
 
   const selectedConnector = connectors.find(
     (c) => c.connectorId === selectedConnectorId
   );
+
+  const logs = logsMap[selectedConnectorId] || [];
+  const logsLoading = logsLoadingMap[selectedConnectorId] || false;
 
   return (
     <div className="sync-page-layout">
@@ -65,7 +78,8 @@ const SyncManagementPage = () => {
       />
       <ConnectorDetails
         connector={selectedConnector}
-        logs={logsMap[selectedConnectorId] || []}
+        logs={logs}
+        logsLoading={logsLoading}
         user={user}
         onRefreshLogs={fetchLogsForConnector}
       />
