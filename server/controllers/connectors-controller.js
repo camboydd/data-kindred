@@ -689,7 +689,6 @@ export const getManualSyncLogs = async (req, res, next) => {
     return next(new HttpError("Error retrieving sync logs", 500));
   }
 };
-
 export const triggerManualSync = async (req, res, next) => {
   const { connectorId, refreshWindow, accountId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -703,17 +702,18 @@ export const triggerManualSync = async (req, res, next) => {
   const connection = await connectToSnowflake();
   const manualSyncId = crypto.randomUUID();
   const startTime = Date.now();
+  const nowUtc = new Date().toISOString(); // Consistent UTC timestamp
 
   try {
     // 1. Log sync start
     await executeQuery(
       connection,
       `
-  INSERT INTO KINDRED.PUBLIC.MANUAL_SYNC_LOGS 
-    (ID, ACCOUNT_ID, CONNECTOR_ID, REFRESH_WINDOW, STATUS, CREATED_AT, STARTED_AT)
-  VALUES (?, ?, ?, ?, 'queued', CURRENT_TIMESTAMP() AT TIME ZONE 'UTC', CURRENT_TIMESTAMP() AT TIME ZONE 'UTC')
-  `,
-      [manualSyncId, accountId, connectorId, refreshWindow]
+        INSERT INTO KINDRED.PUBLIC.MANUAL_SYNC_LOGS 
+          (ID, ACCOUNT_ID, CONNECTOR_ID, REFRESH_WINDOW, STATUS, CREATED_AT, STARTED_AT)
+        VALUES (?, ?, ?, ?, 'queued', ?, ?)
+      `,
+      [manualSyncId, accountId, connectorId, refreshWindow, nowUtc, nowUtc]
     );
 
     // 2. Run ETL with dynamic refresh window
@@ -726,7 +726,7 @@ export const triggerManualSync = async (req, res, next) => {
 
     const result = await runEtlForCustomer(connectorId, accountId, {
       manualSyncId,
-      refreshWindow, // 👈 MAKE SURE THIS GETS PASSED
+      refreshWindow,
     });
 
     if (!result || typeof result.rowCount !== "number") {
@@ -734,40 +734,45 @@ export const triggerManualSync = async (req, res, next) => {
     }
 
     const durationSeconds = (Date.now() - startTime) / 1000;
+    const completedAtUtc = new Date().toISOString();
 
     // 3. Update log as success
     await executeQuery(
       connection,
       `
-  UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
-  SET 
-    STATUS = 'success',
-    COMPLETED_AT = CURRENT_TIMESTAMP() AT TIME ZONE 'UTC',
-    ROW_COUNT = ?, 
-    DURATION_SECONDS = ?
-  WHERE ID = ?
-  `,
-      [result.rowCount, durationSeconds, manualSyncId]
+        UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
+        SET 
+          STATUS = 'success',
+          COMPLETED_AT = ?,
+          ROW_COUNT = ?, 
+          DURATION_SECONDS = ?
+        WHERE ID = ?
+      `,
+      [completedAtUtc, result.rowCount, durationSeconds, manualSyncId]
     );
 
     res.status(200).json({
       message: "Manual sync complete",
       syncId: manualSyncId,
       rowCount: result.rowCount,
-      syncedAt: new Date().toISOString(),
+      syncedAt: completedAtUtc,
     });
   } catch (err) {
     console.error("❌ Manual sync failed:", err);
+    const errorTimeUtc = new Date().toISOString();
 
     // 4. On error fallback logging
     await executeQuery(
       connection,
       `
-  UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
-  SET STATUS = 'error', COMPLETED_AT = CURRENT_TIMESTAMP() AT TIME ZONE 'UTC', ERROR_MESSAGE = ?
-  WHERE ID = ?
-  `,
-      [err.message, manualSyncId]
+        UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
+        SET 
+          STATUS = 'error',
+          COMPLETED_AT = ?,
+          ERROR_MESSAGE = ?
+        WHERE ID = ?
+      `,
+      [errorTimeUtc, err.message, manualSyncId]
     );
 
     return next(new HttpError("Manual sync failed", 500));
