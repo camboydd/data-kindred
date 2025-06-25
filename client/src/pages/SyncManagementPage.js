@@ -34,8 +34,7 @@ const formatRelative = (iso) => {
 const formatDate = (iso) => {
   if (!iso) return "N/A";
   const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const formatted = formatInTimeZone(new Date(iso), localTz, "Pp zzz");
-  return formatted;
+  return formatInTimeZone(new Date(iso), localTz, "Pp zzz");
 };
 
 const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
@@ -43,6 +42,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [lastRowCount, setLastRowCount] = useState(null);
+  const [lastErrorMessage, setLastErrorMessage] = useState(null);
 
   useEffect(() => {
     const latestSuccessful = logs
@@ -55,13 +55,13 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
     if (latestSuccessful) {
       setLastSyncTime(latestSuccessful.completedAt);
       setLastRowCount(latestSuccessful.rowCount ?? null);
+      setLastErrorMessage(latestSuccessful.errorMessage ?? null);
     }
   }, [logs]);
 
   const handleManualSync = async () => {
     setIsLoading(true);
 
-    // Create placeholders for multiple toast IDs
     const toastIds = {
       METADATA: toast.loading("Running Metadata sync..."),
       TELEMETRY: toast.loading("Running Telemetry sync..."),
@@ -84,6 +84,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
       const { syncedAt, rowCount, errorMessage } = await res.json();
       setLastSyncTime(syncedAt);
       setLastRowCount(rowCount);
+      setLastErrorMessage(errorMessage || null);
 
       Object.entries(toastIds).forEach(([script, id]) => {
         toast.success(`${SCRIPT_LABELS[script]} sync complete!`, { id });
@@ -141,13 +142,15 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
           <strong>Last Sync:</strong>{" "}
           {lastSyncTime ? `${formatRelative(lastSyncTime)}` : "Never"}
         </p>
-
         <p>
           <strong>Rows Imported:</strong>{" "}
           {lastRowCount !== undefined && lastRowCount !== null
             ? lastRowCount
             : "N/A"}
         </p>
+        {lastErrorMessage && (
+          <p className="sync-warning">⚠️ {lastErrorMessage}</p>
+        )}
       </div>
 
       <div className="sync-logs">
@@ -172,7 +175,6 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
                     {log.tableName ? ` (${log.tableName})` : ""}
                   </strong>
                 </div>
-
                 <div>
                   {formatRelative(log.createdAt)} →{" "}
                   {log.completedAt
@@ -184,7 +186,6 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
                     )
                   </small>
                 </div>
-
                 <div>
                   Status:{" "}
                   <span
@@ -192,7 +193,9 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
                       log.status || "unknown"
                     ).toLowerCase()}`}
                   >
-                    {log.status || "Unknown"}
+                    {log.status === "success" && log.errorMessage
+                      ? "Partial Success"
+                      : log.status || "Unknown"}
                   </span>
                   {log.durationSeconds !== null &&
                     log.durationSeconds !== undefined && (
@@ -209,7 +212,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
                     : "?"}
                 </div>
                 {log.errorMessage && (
-                  <div className="error-message">{log.errorMessage}</div>
+                  <div className="error-message">⚠️ {log.errorMessage}</div>
                 )}
               </li>
             ))}
@@ -261,12 +264,6 @@ const SyncManagementPage = () => {
         if (!res.ok) throw new Error("Failed to fetch connectors");
 
         const data = await res.json();
-        console.log("🕒 Browser local time:", new Date().toString());
-        console.log(
-          "🕒 New York time:",
-          new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
-        );
-
         setConnectors(data.configs || []);
       } catch (err) {
         console.error("Error fetching connectors", err);
