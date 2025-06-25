@@ -10,7 +10,7 @@
 
 /* === LEFT PANEL === */
 .login-left-panel {
-  flex: 1.1;
+  flex: 1;
   background: linear-gradient(
     135deg,
     #4f46e5 0%,
@@ -22,7 +22,6 @@
   justify-content: center;
   align-items: center;
   position: relative;
-  clip-path: polygon(0 0, 85% 0, 100% 100%, 0% 100%);
   z-index: 1;
   
 }
@@ -47,7 +46,7 @@
 
 /* === RIGHT PANEL === */
 .login-right-panel {
-  flex: .9;
+  flex: 1;
   background: #f1f5f9;
   display: flex;
   justify-content: center;
@@ -192,17 +191,6 @@
   margin: 0;
   max-width: 320px;
   line-height: 1.6;
-}
-
-.login-left-panel::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  width: 20px;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent);
-  z-index: 0;
 }
 
 .login-spinner {
