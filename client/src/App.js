@@ -158,7 +158,7 @@ const AppLayout = () => {
           )}
         </Routes>
 
-        {user && <Footer />}
+        {!user && <Footer />}
       </div>
 
       <div className="small-screen-message">
