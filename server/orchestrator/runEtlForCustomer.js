@@ -4,6 +4,7 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import { insertManualSyncLog } from "../util/manualSyncLogger.js";
 import { connectToSnowflake } from "../util/snowflake-connection.js";
+import axios from "axios";
 
 export async function runEtlForCustomerOld(
   connectorId,
@@ -102,8 +103,6 @@ export async function runEtlForCustomerOld(
     rowCount: totalRows,
   };
 }
-import axios from "axios";
-
 export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
@@ -124,7 +123,7 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   return {
     connectorId,
     accountId,
-    syncedAt: result.data.completedAt ?? new Date().toISOString(),
-    rowCount: result.data.rowCount ?? null,
+    metadata: result.data.metadata || {},
+    telemetry: result.data.telemetry || {},
   };
 }
