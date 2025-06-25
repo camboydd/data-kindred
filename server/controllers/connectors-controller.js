@@ -733,6 +733,11 @@ export const triggerManualSync = async (req, res, next) => {
       throw new Error("ETL did not return a valid result");
     }
 
+    const errorMessage =
+      result.nClarityServerErrors && Array.isArray(result.errors)
+        ? `nClarity API errors in ${result.errors.length} chunk(s)`
+        : null;
+
     const durationSeconds = (Date.now() - startTime) / 1000;
     const completedAtUtc = new Date();
 
@@ -745,10 +750,17 @@ export const triggerManualSync = async (req, res, next) => {
           STATUS = 'success',
           COMPLETED_AT = ?,
           ROW_COUNT = ?, 
-          DURATION_SECONDS = ?
+          DURATION_SECONDS = ?,
+          ERROR_MESSAGE = ?
         WHERE ID = ?
       `,
-      [completedAtUtc, result.rowCount, durationSeconds, manualSyncId]
+      [
+        completedAtUtc,
+        result.rowCount,
+        durationSeconds,
+        errorMessage,
+        manualSyncId,
+      ]
     );
 
     res.status(200).json({
@@ -756,6 +768,7 @@ export const triggerManualSync = async (req, res, next) => {
       syncId: manualSyncId,
       rowCount: result.rowCount,
       syncedAt: completedAtUtc.toISOString(),
+      errorMessage, // include for frontend use if needed
     });
   } catch (err) {
     console.error("❌ Manual sync failed:", err);

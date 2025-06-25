@@ -35,7 +35,6 @@ const formatDate = (iso) => {
   if (!iso) return "N/A";
   const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const formatted = formatInTimeZone(new Date(iso), localTz, "Pp zzz");
-  console.log("🕓 formatDate input:", iso, "| Output:", formatted);
   return formatted;
 };
 
@@ -82,14 +81,17 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
 
       if (!res.ok) throw new Error("Sync failed");
 
-      const { syncedAt, rowCount } = await res.json();
+      const { syncedAt, rowCount, errorMessage } = await res.json();
       setLastSyncTime(syncedAt);
       setLastRowCount(rowCount);
 
-      // Replace all toasts with success state
       Object.entries(toastIds).forEach(([script, id]) => {
         toast.success(`${SCRIPT_LABELS[script]} sync complete!`, { id });
       });
+
+      if (errorMessage) {
+        toast.error(`⚠️ ${errorMessage}`);
+      }
 
       toast.success(
         `${formatConnectorName(connector.connectorId)} synced successfully!`
@@ -137,7 +139,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
       <div className="sync-meta">
         <p>
           <strong>Last Sync:</strong>{" "}
-          {lastSyncTime ? `${formatRelative(lastSyncTime)} (local)` : "Never"}
+          {lastSyncTime ? `${formatRelative(lastSyncTime)}` : "Never"}
         </p>
 
         <p>
@@ -207,7 +209,7 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
                     : "?"}
                 </div>
                 {log.errorMessage && (
-                  <div className="error-message">⚠️ {log.errorMessage}</div>
+                  <div className="error-message">{log.errorMessage}</div>
                 )}
               </li>
             ))}
