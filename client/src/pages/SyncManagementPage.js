@@ -81,10 +81,22 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
 
       if (!res.ok) throw new Error("Sync failed");
 
-      const { syncedAt, rowCount, errorMessage } = await res.json();
+      const {
+        syncedAt,
+        rowCount,
+        errorMessage,
+        errors = [],
+      } = await res.json();
       setLastSyncTime(syncedAt);
       setLastRowCount(rowCount);
       setLastErrorMessage(errorMessage || null);
+
+      const summaryErrors = aggregateErrors(errors);
+      if (summaryErrors.length > 0) {
+        toast.error(
+          "⚠️ Sync completed with errors:\n" + summaryErrors.join("\n")
+        );
+      }
 
       Object.entries(toastIds).forEach(([script, id]) => {
         toast.success(`${SCRIPT_LABELS[script]} sync complete!`, { id });
@@ -110,6 +122,15 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const aggregateErrors = (errors) => {
+    const counts = {};
+    for (const err of errors || []) {
+      const msg = err.error || err.message || "Unknown error";
+      counts[msg] = (counts[msg] || 0) + 1;
+    }
+    return Object.entries(counts).map(([msg, count]) => `${count}× ${msg}`);
   };
 
   return (
