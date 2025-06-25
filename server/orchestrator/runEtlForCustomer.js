@@ -106,24 +106,29 @@ export async function runEtlForCustomerOld(
 export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
-  const result = await axios.post(
-    "https://kindred-etl-service.onrender.com/run-etl",
-    {
+  try {
+    const result = await axios.post(
+      "https://kindred-etl-service.onrender.com/run-etl",
+      {
+        connectorId,
+        accountId,
+        refreshWindow,
+        manualSyncId,
+      }
+    );
+
+    if (result.data.status !== "success") {
+      throw new Error(`ETL failed: ${result.data.details || "Unknown error"}`);
+    }
+
+    return {
       connectorId,
       accountId,
-      refreshWindow,
-      manualSyncId,
-    }
-  );
-
-  if (result.data.status !== "success") {
-    throw new Error("ETL failed: " + JSON.stringify(result.data));
+      syncedAt: result.data.completedAt ?? new Date().toISOString(),
+      rowCount: result.data.rowCount ?? null,
+    };
+  } catch (err) {
+    console.error("🔥 ETL request failed", err);
+    throw new Error(`ETL call failed: ${err.message}`);
   }
-
-  return {
-    connectorId,
-    accountId,
-    metadata: result.data.metadata || {},
-    telemetry: result.data.telemetry || {},
-  };
 }

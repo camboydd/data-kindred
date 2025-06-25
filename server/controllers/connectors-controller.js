@@ -738,11 +738,7 @@ export const triggerManualSync = async (req, res, next) => {
     const telemetryCount = telemetry.rowCount || 0;
     const totalCount = metadataCount + telemetryCount;
 
-    const telemetryErrors = result.telemetry?.errors || [];
-    const errorMessage =
-      result.telemetry?.nClarityServerErrors && telemetryErrors.length > 0
-        ? `nClarity API errors in ${telemetryErrors.length} chunk(s)`
-        : null;
+    const errorMessage = result.errorMessage || null;
 
     const durationSeconds = (Date.now() - startTime) / 1000;
     const completedAtUtc = new Date();
