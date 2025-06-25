@@ -689,6 +689,7 @@ export const getManualSyncLogs = async (req, res, next) => {
     return next(new HttpError("Error retrieving sync logs", 500));
   }
 };
+
 export const triggerManualSync = async (req, res, next) => {
   const { connectorId, refreshWindow, accountId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -702,7 +703,7 @@ export const triggerManualSync = async (req, res, next) => {
   const connection = await connectToSnowflake();
   const manualSyncId = crypto.randomUUID();
   const startTime = Date.now();
-  const nowUtc = new Date(); // single UTC date instance
+  const nowUtc = new Date();
 
   try {
     // 1. Log sync start
@@ -716,7 +717,7 @@ export const triggerManualSync = async (req, res, next) => {
       [manualSyncId, accountId, connectorId, refreshWindow, nowUtc, nowUtc]
     );
 
-    // 2. Run ETL with dynamic refresh window
+    // 2. Run ETL
     console.log("🚀 Starting ETL for", {
       connectorId,
       accountId,
@@ -729,19 +730,24 @@ export const triggerManualSync = async (req, res, next) => {
       refreshWindow,
     });
 
-    if (!result || typeof result.rowCount !== "number") {
-      throw new Error("ETL did not return a valid result");
-    }
+    // Extract result from both metadata and telemetry (if both exist)
+    const metadata = result?.metadata || {};
+    const telemetry = result?.telemetry || {};
 
+    const metadataCount = metadata.rowCount || 0;
+    const telemetryCount = telemetry.rowCount || 0;
+    const totalCount = metadataCount + telemetryCount;
+
+    const telemetryErrors = telemetry.errors || [];
     const errorMessage =
-      result.nClarityServerErrors && Array.isArray(result.errors)
-        ? `nClarity API errors in ${result.errors.length} chunk(s)`
+      telemetry.nClarityServerErrors && telemetryErrors.length > 0
+        ? `nClarity API errors in ${telemetryErrors.length} chunk(s)`
         : null;
 
     const durationSeconds = (Date.now() - startTime) / 1000;
     const completedAtUtc = new Date();
 
-    // 3. Update log as success
+    // 3. Update log
     await executeQuery(
       connection,
       `
@@ -754,27 +760,21 @@ export const triggerManualSync = async (req, res, next) => {
           ERROR_MESSAGE = ?
         WHERE ID = ?
       `,
-      [
-        completedAtUtc,
-        result.rowCount,
-        durationSeconds,
-        errorMessage,
-        manualSyncId,
-      ]
+      [completedAtUtc, totalCount, durationSeconds, errorMessage, manualSyncId]
     );
 
+    // 4. Respond to client
     res.status(200).json({
       message: "Manual sync complete",
       syncId: manualSyncId,
-      rowCount: result.rowCount,
+      rowCount: totalCount,
       syncedAt: completedAtUtc.toISOString(),
-      errorMessage, // include for frontend use if needed
+      errorMessage,
     });
   } catch (err) {
     console.error("❌ Manual sync failed:", err);
     const errorTimeUtc = new Date();
 
-    // 4. On error fallback logging
     await executeQuery(
       connection,
       `
