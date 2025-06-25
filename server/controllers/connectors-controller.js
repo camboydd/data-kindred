@@ -709,10 +709,10 @@ export const triggerManualSync = async (req, res, next) => {
     await executeQuery(
       connection,
       `
-      INSERT INTO KINDRED.PUBLIC.MANUAL_SYNC_LOGS 
-        (ID, ACCOUNT_ID, CONNECTOR_ID, REFRESH_WINDOW, STATUS, CREATED_AT, STARTED_AT)
-      VALUES (?, ?, ?, ?, 'queued', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
-      `,
+  INSERT INTO KINDRED.PUBLIC.MANUAL_SYNC_LOGS 
+    (ID, ACCOUNT_ID, CONNECTOR_ID, REFRESH_WINDOW, STATUS, CREATED_AT, STARTED_AT)
+  VALUES (?, ?, ?, ?, 'queued', CURRENT_TIMESTAMP() AT TIME ZONE 'UTC', CURRENT_TIMESTAMP() AT TIME ZONE 'UTC')
+  `,
       [manualSyncId, accountId, connectorId, refreshWindow]
     );
 
@@ -739,14 +739,14 @@ export const triggerManualSync = async (req, res, next) => {
     await executeQuery(
       connection,
       `
-      UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
-      SET 
-        STATUS = 'success',
-        COMPLETED_AT = CURRENT_TIMESTAMP(),
-        ROW_COUNT = ?, 
-        DURATION_SECONDS = ?
-      WHERE ID = ?
-      `,
+  UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
+  SET 
+    STATUS = 'success',
+    COMPLETED_AT = CURRENT_TIMESTAMP() AT TIME ZONE 'UTC',
+    ROW_COUNT = ?, 
+    DURATION_SECONDS = ?
+  WHERE ID = ?
+  `,
       [result.rowCount, durationSeconds, manualSyncId]
     );
 
@@ -759,13 +759,14 @@ export const triggerManualSync = async (req, res, next) => {
   } catch (err) {
     console.error("❌ Manual sync failed:", err);
 
+    // 4. On error fallback logging
     await executeQuery(
       connection,
       `
-      UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
-      SET STATUS = 'error', COMPLETED_AT = CURRENT_TIMESTAMP(), ERROR_MESSAGE = ?
-      WHERE ID = ?
-      `,
+  UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
+  SET STATUS = 'error', COMPLETED_AT = CURRENT_TIMESTAMP() AT TIME ZONE 'UTC', ERROR_MESSAGE = ?
+  WHERE ID = ?
+  `,
       [err.message, manualSyncId]
     );
 

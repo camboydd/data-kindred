@@ -33,11 +33,10 @@ const formatRelative = (iso) => {
 
 const formatDate = (iso) => {
   if (!iso) return "N/A";
-  return formatInTimeZone(
-    new Date(iso),
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    "Pp zzz"
-  );
+  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const formatted = formatInTimeZone(new Date(iso), localTz, "Pp zzz");
+  console.log("🕓 formatDate input:", iso, "| Output:", formatted);
+  return formatted;
 };
 
 const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
@@ -138,8 +137,9 @@ const SyncCard = ({ connector, isAdmin, accountId, logs, onRefresh }) => {
       <div className="sync-meta">
         <p>
           <strong>Last Sync:</strong>{" "}
-          {lastSyncTime ? formatRelative(lastSyncTime) : "Never"}
+          {lastSyncTime ? `${formatRelative(lastSyncTime)} (local)` : "Never"}
         </p>
+
         <p>
           <strong>Rows Imported:</strong>{" "}
           {lastRowCount !== undefined && lastRowCount !== null
