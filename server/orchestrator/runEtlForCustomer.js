@@ -103,6 +103,7 @@ export async function runEtlForCustomerOld(
     rowCount: totalRows,
   };
 }
+
 export async function runEtlForCustomer(connectorId, accountId, options = {}) {
   const { refreshWindow = "30d", manualSyncId = crypto.randomUUID() } = options;
 
@@ -117,7 +118,10 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
       }
     );
 
-    if (result.data.status !== "success") {
+    if (
+      result.data.status !== "success" &&
+      result.data.status !== "partial_success"
+    ) {
       throw new Error(`ETL failed: ${result.data.details || "Unknown error"}`);
     }
 
