@@ -121,14 +121,41 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
       throw new Error(`ETL failed: ${result.data.details || "Unknown error"}`);
     }
 
+    const errorSummary = aggregateErrorSummary(result.data.errors ?? []);
+
     return {
       connectorId,
       accountId,
       syncedAt: result.data.completedAt ?? new Date().toISOString(),
       rowCount: result.data.rowCount ?? null,
+      errorMessage: errorSummary || null,
     };
   } catch (err) {
     console.error("🔥 ETL request failed", err);
     throw new Error(`ETL call failed: ${err.message}`);
   }
+}
+
+// Helper to aggregate error types into a readable summary
+function aggregateErrorSummary(errors) {
+  if (!Array.isArray(errors) || errors.length === 0) return null;
+
+  const counts = {};
+
+  for (const err of errors) {
+    const msg =
+      typeof err === "string" ? err : err.error || JSON.stringify(err);
+    const match = msg.match(/\b(4\d\d|5\d\d)\b/);
+    const key = match
+      ? `${match[0]} ${msg.includes("Timeout") ? "Timeout" : "Error"}`
+      : msg.includes("Timeout")
+      ? "Timeout"
+      : "Unknown Error";
+
+    counts[key] = (counts[key] || 0) + 1;
+  }
+
+  return Object.entries(counts)
+    .map(([type, count]) => `${count}× ${type}`)
+    .join("\n");
 }
