@@ -689,7 +689,6 @@ export const getManualSyncLogs = async (req, res, next) => {
     return next(new HttpError("Error retrieving sync logs", 500));
   }
 };
-
 export const triggerManualSync = async (req, res, next) => {
   const { connectorId, refreshWindow, accountId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
@@ -725,21 +724,16 @@ export const triggerManualSync = async (req, res, next) => {
       manualSyncId,
     });
 
-    const result = await runEtlForCustomer(connectorId, accountId, {
-      manualSyncId,
-      refreshWindow,
-    });
+    const { syncedAt, rowCount, errorMessage } = await runEtlForCustomer(
+      connectorId,
+      accountId,
+      {
+        manualSyncId,
+        refreshWindow,
+      }
+    );
 
-    // Extract result from both metadata and telemetry (if both exist)
-    const metadata = result?.metadata || {};
-    const telemetry = result?.telemetry || {};
-
-    const metadataCount = metadata.rowCount || 0;
-    const telemetryCount = telemetry.rowCount || 0;
-    const totalCount = metadataCount + telemetryCount;
-
-    const errorMessage = result.errorMessage || null;
-
+    const status = errorMessage ? "partial_success" : "success";
     const durationSeconds = (Date.now() - startTime) / 1000;
     const completedAtUtc = new Date();
 
@@ -749,21 +743,28 @@ export const triggerManualSync = async (req, res, next) => {
       `
         UPDATE KINDRED.PUBLIC.MANUAL_SYNC_LOGS
         SET 
-          STATUS = 'success',
+          STATUS = ?,
           COMPLETED_AT = ?,
           ROW_COUNT = ?, 
           DURATION_SECONDS = ?,
           ERROR_MESSAGE = ?
         WHERE ID = ?
       `,
-      [completedAtUtc, totalCount, durationSeconds, errorMessage, manualSyncId]
+      [
+        status,
+        completedAtUtc,
+        rowCount,
+        durationSeconds,
+        errorMessage,
+        manualSyncId,
+      ]
     );
 
     // 4. Respond to client
     res.status(200).json({
       message: "Manual sync complete",
       syncId: manualSyncId,
-      rowCount: totalCount,
+      rowCount,
       syncedAt: completedAtUtc.toISOString(),
       errorMessage,
     });

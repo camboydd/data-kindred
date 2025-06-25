@@ -141,33 +141,3 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
     throw new Error(`ETL call failed: ${err.message}`);
   }
 }
-
-// Helper to aggregate error types into a readable summary
-function aggregateErrorSummary(errors) {
-  if (!Array.isArray(errors) || errors.length === 0) return null;
-
-  const counts = {};
-
-  for (const err of errors) {
-    const msg =
-      typeof err === "string" ? err : err.error || JSON.stringify(err);
-    const match = msg.match(/\b(4\d\d|5\d\d)\b/);
-    const key = (() => {
-      if (match) {
-        const code = match[0];
-        if (code.startsWith("5")) return `${code} Server Error`;
-        if (code.startsWith("4")) return `${code} Client Error`;
-      }
-      if (msg.toLowerCase().includes("timeout")) return "Timeout";
-      if (msg.toLowerCase().includes("server")) return "Server Error";
-      if (msg.toLowerCase().includes("connection")) return "Connection Error";
-      return "Unknown Error";
-    })();
-
-    counts[key] = (counts[key] || 0) + 1;
-  }
-
-  return Object.entries(counts)
-    .map(([type, count]) => `${type} Occured`)
-    .join("\n");
-}
