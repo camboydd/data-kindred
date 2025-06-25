@@ -164,6 +164,6 @@ function aggregateErrorSummary(errors) {
   }
 
   return Object.entries(counts)
-    .map(([type, count]) => `${count}× ${type}`)
+    .map(([type, count]) => `${type} Occured`)
     .join("\n");
 }
