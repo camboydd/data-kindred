@@ -33,6 +33,7 @@
     "puppeteer": "^24.8.2",
     "retry": "^0.13.1",
     "snowflake-sdk": "^1.11.0",
+    "stripe": "^18.2.1",
     "uuid": "^11.1.0"
   },
   "name": "server",

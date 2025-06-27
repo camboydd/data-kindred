@@ -4,15 +4,19 @@ import { useAuth } from "../context/AuthContext";
 import ReCAPTCHA from "react-google-recaptcha";
 import kindredLogo from "../assets/images/kindred.png";
 import "./LoginPage.css";
+import { useLocation } from "react-router-dom";
 
 const LoginPage = () => {
-  const [email, setEmail] = useState("camboydd@yahoo.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { login } = useAuth();
   const [captchaToken, setCaptchaToken] = useState(null);
   const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const nextPath =
+    new URLSearchParams(location.search).get("next") || "/dashboard";
 
   useEffect(() => {
     if (error) {
@@ -35,7 +39,7 @@ const LoginPage = () => {
     setLoading(false); // ✅ End loading
 
     if (result.success) {
-      navigate("/dashboard");
+      navigate(nextPath);
     } else {
       switch (result.code) {
         case "USER_NOT_FOUND":

@@ -2,6 +2,8 @@ import express from "express";
 import {
   login,
   logout,
+  createCheckoutSession,
+  signup,
   setupPassword,
   resetPassword,
   requestPasswordReset,
@@ -20,6 +22,8 @@ userRouter.get("/check-auth", checkAuth, (req, res) => {
 
 // Public routes
 userRouter.post("/login", login);
+userRouter.get("/create-checkout-session", createCheckoutSession);
+userRouter.post("/signup", signup);
 userRouter.post("/logout", checkAuth, logout);
 userRouter.post("/setup-password", setupPassword);
 userRouter.post("/reset-password", resetPassword); // no token in the path

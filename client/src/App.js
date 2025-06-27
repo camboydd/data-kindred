@@ -32,6 +32,7 @@ import { useAuth } from "./context/AuthContext";
 
 import "./App.css";
 import UserSettings from "./pages/UserSettings";
+import SignupPage from "./pages/SignupPage";
 
 const AppLayout = () => {
   const { user } = useAuth();
@@ -55,6 +56,7 @@ const AppLayout = () => {
                 element={<OAuthCallbackPage />}
               />
               <Route path="/login" element={<NotFoundPage />} />
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </>
           )}

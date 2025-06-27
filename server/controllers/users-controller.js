@@ -10,6 +10,150 @@ import crypto from "node:crypto";
 import { sendEmail } from "../util/send-email.js";
 import { logAuditEvent } from "../util/auditLogger.js";
 import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import { createStripeCustomer } from "../util/stripe.js";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const createCheckoutSession = async (req, res, next) => {
+  const { priceId } = req.query;
+  const accountId = req.user?.accountId;
+  const email = req.user?.email;
+
+  if (!priceId || !accountId) {
+    return next(new HttpError("Missing priceId or accountId.", 400));
+  }
+
+  try {
+    const connection = await connectToSnowflake();
+    const accountResult = await executeQuery(
+      connection,
+      `SELECT STRIPE_CUSTOMER_ID FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+      [accountId]
+    );
+
+    const stripeCustomerId = accountResult?.[0]?.STRIPE_CUSTOMER_ID;
+
+    if (!stripeCustomerId) {
+      return next(new HttpError("Stripe customer not found for account.", 404));
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      customer: stripeCustomerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { accountId },
+      success_url: `${process.env.FRONTEND_URL}/dashboard?checkout=success`,
+      cancel_url: `${process.env.FRONTEND_URL}/pricing?checkout=cancel`,
+    });
+
+    res.status(200).json({ url: session.url });
+  } catch (err) {
+    console.error("❌ Error creating Stripe Checkout Session:", err);
+    return next(new HttpError("Could not start Stripe Checkout.", 500));
+  }
+};
+
+const signup = async (req, res, next) => {
+  const { email, password, name, company } = req.body;
+
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+
+  if (!email || !password || !name) {
+    return next(new HttpError("Email, name, and password are required.", 422));
+  }
+
+  const accountId = uuidv4();
+  const userId = uuidv4();
+  const hashedPassword = await bcrypt.hash(password, 12);
+  const planParam = req.body.plan?.toLowerCase() || "basic";
+  const plan = ["basic", "pro", "enterprise"].includes(planParam)
+    ? planParam.charAt(0).toUpperCase() + planParam.slice(1)
+    : "Basic";
+
+  try {
+    const connection = await connectToSnowflake();
+
+    // 1. Insert account first
+    await executeQuery(
+      connection,
+      `INSERT INTO KINDRED.PUBLIC.ACCOUNTS (ID, NAME, PLAN) VALUES (?, ?, ?)`,
+      [accountId, company || name, plan]
+    );
+
+    // 2. Create Stripe customer
+    const stripeCustomerId = await createStripeCustomer({
+      name: company || name,
+      email,
+      accountId,
+    });
+
+    await executeQuery(
+      connection,
+      `UPDATE KINDRED.PUBLIC.ACCOUNTS SET STRIPE_CUSTOMER_ID = ? WHERE ID = ?`,
+      [stripeCustomerId, accountId]
+    );
+
+    // 3. Insert user
+    await executeQuery(
+      connection,
+      `INSERT INTO KINDRED.PUBLIC.USERS (ID, EMAIL, NAME, PASSWORD_HASH, ACCOUNT_ID) VALUES (?, ?, ?, ?, ?)`,
+      [userId, email, name, hashedPassword, accountId]
+    );
+
+    // 4. (Optional) auto-login and issue token
+    const token = jwt.sign(
+      {
+        userId,
+        email,
+        accountId,
+        role: "member",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+      maxAge: 3600000,
+    });
+
+    await logAuditEvent({
+      accountId,
+      initiatorEmail: email,
+      initiatorAccountId: accountId,
+      actorEmail: email,
+      action: "signup",
+      targetEntity: userId,
+      status: "success",
+      metadata: { ip, planRequested: planParam },
+    });
+
+    await sendEmail(
+      email,
+      "Welcome to DataKindred!",
+      `
+      <h2>Welcome, ${name} 👋</h2>
+      <p>Your Kindred account has been created successfully under the <strong>${planParam}</strong> plan.</p>
+      <p>You can now set up your integrations and begin syncing data.</p>
+      <br/>
+      <p style="color: #94a3b8; font-size: 14px;">Thanks,<br/>The Kindred Team</p>
+      `
+    );
+
+    res.status(201).json({
+      message: "Account and user created successfully.",
+      user: { email, account_id: accountId, role: "member" },
+    });
+  } catch (err) {
+    console.error("❌ Signup failed:", err);
+    return next(new HttpError("Signup failed. Try again later.", 500));
+  }
+};
 
 const verifyCaptcha = async (token) => {
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;
@@ -39,6 +183,13 @@ const login = async (req, res, next) => {
     console.log("[LOGIN] Looking up user by email:", email);
     const user = await getUserByEmail(email);
     console.log("[LOGIN] User lookup result:", user);
+    const conn = await connectToSnowflake();
+    const result = await executeQuery(
+      conn,
+      `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+      [user.account_id]
+    );
+    const plan = result?.[0]?.PLAN || "Basic";
 
     if (!user) {
       console.warn("[LOGIN] No user found with email:", email);
@@ -97,6 +248,7 @@ const login = async (req, res, next) => {
         email: user.email,
         accountId: user.account_id,
         role: user.role,
+        plan, // ✅ include plan
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -529,6 +681,8 @@ const updateUser = async (req, res, next) => {
 
 export {
   login,
+  signup,
+  createCheckoutSession,
   logout,
   checkAuth,
   setupPassword,
