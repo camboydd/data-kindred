@@ -705,12 +705,18 @@ export const getManualSyncLogs = async (req, res, next) => {
       rowCount: log.ROW_COUNT ?? null,
     }));
 
-    res.status(200).json({ logs });
+    const latest = logs[0];
+    const inProgress =
+      latest?.status === "in_progress" ||
+      (!latest?.completedAt && !!latest?.startedAt);
+
+    res.status(200).json({ logs, inProgress });
   } catch (err) {
     console.error("❌ Failed to fetch manual sync logs:", err);
     return next(new HttpError("Error retrieving sync logs", 500));
   }
 };
+
 export const triggerManualSync = async (req, res, next) => {
   const { connectorId, refreshWindow, accountId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;

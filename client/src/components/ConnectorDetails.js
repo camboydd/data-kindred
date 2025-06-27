@@ -27,27 +27,57 @@ const ConnectorDetails = ({
     error: null,
   });
 
+  const syncKey = `syncing_${connector?.connectorId}`;
+
   useEffect(() => {
     const latest = logs
-      ?.filter((l) => l.completedAt)
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0];
+      ?.filter((l) => l.completedAt || l.startedAt)
+      .sort((a, b) => {
+        const dateA = new Date(a.completedAt || a.startedAt);
+        const dateB = new Date(b.completedAt || b.startedAt);
+        return dateB - dateA;
+      })[0];
+
+    const stillRunning =
+      latest?.status === "in_progress" ||
+      (!latest?.completedAt && !!latest?.startedAt);
+
+    if (stillRunning) {
+      setIsLoading(true);
+      localStorage.setItem(syncKey, "true");
+    } else {
+      setIsLoading(false);
+      localStorage.removeItem(syncKey);
+    }
 
     if (latest) {
       setLastSync({
-        time: latest.completedAt,
-        rows: latest.rowCount ?? null,
+        time: latest.completedAt || latest.startedAt,
+        rows: latest.rowCount ?? (stillRunning ? "In Progress" : "N/A"),
         error: latest.errorMessage ?? null,
       });
     }
   }, [logs]);
 
   useEffect(() => {
-    setLastSync({ time: null, rows: null, error: null });
-    setActiveTab("overview"); // optional: reset tab to overview on change
+    if (localStorage.getItem(syncKey) === "true") {
+      setIsLoading(true);
+    }
   }, [connector?.connectorId]);
+
+  useEffect(() => {
+    let interval;
+    if (isLoading && connector?.connectorId) {
+      interval = setInterval(() => {
+        onRefreshLogs(connector.connectorId);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading, connector?.connectorId]);
 
   const handleManualSync = async () => {
     setIsLoading(true);
+    localStorage.setItem(syncKey, "true");
     const toastId = toast.loading("Syncing...");
 
     try {
@@ -63,7 +93,6 @@ const ConnectorDetails = ({
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data?.error || "Sync failed");
 
       toast.success("✅ Sync completed", { id: toastId });
@@ -83,17 +112,18 @@ const ConnectorDetails = ({
       toast.error("❌ Sync failed", { id: toastId });
     } finally {
       setIsLoading(false);
+      localStorage.removeItem(syncKey);
     }
   };
 
-  const formatDate = (iso) => {
-    if (!iso) return "N/A";
-    return formatInTimeZone(
-      new Date(iso),
-      Intl.DateTimeFormat().resolvedOptions().timeZone,
-      "Pp zzz"
-    );
-  };
+  const formatDate = (iso) =>
+    iso
+      ? formatInTimeZone(
+          new Date(iso),
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+          "Pp zzz"
+        )
+      : "N/A";
 
   const aggregateErrors = (errors) => {
     const counts = {};
@@ -126,30 +156,34 @@ const ConnectorDetails = ({
             )}
           </select>
           <button onClick={handleManualSync} disabled={isLoading}>
-            {isLoading ? "Syncing..." : "Run Manual Sync"}
+            {isLoading ? (
+              <>
+                Syncing
+                <span className="sync-spinner" />
+              </>
+            ) : (
+              "Run Manual Sync"
+            )}
           </button>
         </div>
       </div>
 
+      {isLoading && (
+        <div className="sync-status-banner">
+          Sync in progress... This panel will update automatically.
+        </div>
+      )}
+
       <div className="tabs">
-        <button
-          className={activeTab === "overview" ? "active" : ""}
-          onClick={() => setActiveTab("overview")}
-        >
-          Overview
-        </button>
-        <button
-          className={activeTab === "logs" ? "active" : ""}
-          onClick={() => setActiveTab("logs")}
-        >
-          Logs
-        </button>
-        <button
-          className={activeTab === "errors" ? "active" : ""}
-          onClick={() => setActiveTab("errors")}
-        >
-          Errors
-        </button>
+        {["overview", "logs", "errors"].map((tab) => (
+          <button
+            key={tab}
+            className={activeTab === tab ? "active" : ""}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab[0].toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
       </div>
 
       <div className="tab-content">
@@ -165,12 +199,18 @@ const ConnectorDetails = ({
                   : "Never"}
               </span>
             </div>
-
             <div className="overview-item">
               <span className="label">Rows Imported</span>
-              <span className="value">{lastSync.rows ?? "N/A"}</span>
+              <span className="value">
+                {lastSync.rows === "In Progress" ? (
+                  <>
+                    In Progress <span className="sync-spinner" />
+                  </>
+                ) : (
+                  lastSync.rows ?? "N/A"
+                )}
+              </span>
             </div>
-
             {lastSync.error && (
               <div className="error-banner">⚠️ {lastSync.error}</div>
             )}

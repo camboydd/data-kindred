@@ -232,3 +232,98 @@
     padding: 8px 4px;
   }
   
+  .tabs button {
+    padding: 8px 16px;
+    margin-right: 4px;
+    border: none;
+    background-color: #f0f2f5;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    font-weight: 500;
+  }
+  
+  .tabs button.active {
+    background-color: #fff;
+    border-bottom: 2px solid #1890ff;
+    color: #1890ff;
+  }
+  
+  .tab-content {
+    background: #fff;
+    padding: 16px;
+    border: 1px solid #eaeaea;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+  }
+  
+  .logs-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .logs-table th,
+  .logs-table td {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+  
+  .overview-section .overview-item {
+    margin-bottom: 12px;
+  }
+  
+  .overview-item .label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+  }
+  
+  .error-banner {
+    background-color: #fff1f0;
+    color: #a8071a;
+    padding: 8px 12px;
+    border: 1px solid #ffa39e;
+    border-radius: 6px;
+    margin-top: 10px;
+  }
+  
+  .error-list {
+    list-style: none;
+    padding-left: 0;
+  }
+  
+  .error-item {
+    background-color: #fff1f0;
+    padding: 6px 10px;
+    border: 1px solid #ffa39e;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    color: #a8071a;
+  }
+  .sync-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #ccc;
+    border-top-color: #0b74de;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  .sync-status-banner {
+    background-color: #f5f5f5;
+    color: #555;
+    padding: 0.6rem 1rem;
+    margin: 0.5rem 0 1rem 0;
+    border-left: 4px solid #0b74de;
+    font-size: 0.95rem;
+  }
+  
