@@ -1,3 +1,4 @@
+// routes/connectors-routes.js
 import express from "express";
 import {
   getConnectorConfig,
@@ -11,11 +12,20 @@ import {
   getManualSyncLogs,
 } from "../controllers/connectors-controller.js";
 import { checkAuth } from "../controllers/users-controller.js";
+import { checkConnectorLimit } from "../util/check-connector-limit.js";
 
 const connectorsRouter = express.Router();
 
 connectorsRouter.post("/:id/config", checkAuth, getConnectorConfig);
-connectorsRouter.post("/setup", checkAuth, createOrUpdateConnectorConfig);
+
+// 🔒 Apply limit only to setup endpoint
+connectorsRouter.post(
+  "/setup",
+  checkAuth,
+  checkConnectorLimit,
+  createOrUpdateConnectorConfig
+);
+
 connectorsRouter.post("/:id/test", checkAuth, testConnectorConnection);
 connectorsRouter.post("/:id/status", checkAuth, getConnectorStatus);
 connectorsRouter.get("/statuses", checkAuth, getAllConnectorStatuses);

@@ -1,27 +1,30 @@
+// src/util/plan-config.js
+
 export const PLAN_RULES = {
   Basic: {
     maxConnectors: 2,
     canInviteUsers: false,
     showAdvancedSettings: false,
+    syncIntervalHours: 24, // Daily
     features: ["sync", "logs"],
-    limits: {
-      autoSyncFrequencyMinutes: 1440, // once per day
-    },
+    manualSyncLimitPerConnectorPerDay: 0,
   },
+
   Pro: {
     maxConnectors: 5,
     canInviteUsers: true,
     showAdvancedSettings: true,
+    syncIntervalHours: 1, // Hourly
     features: ["sync", "logs", "auditLogs", "manualSync"],
-    limits: {
-      autoSyncFrequencyMinutes: 60, // once per hour
-      manualSyncPerConnectorPerDay: 1,
-    },
+    manualSyncLimitPerConnectorPerDay: 1, // ⏱️ 1 manual sync per connector/day
   },
+
   Enterprise: {
     maxConnectors: 999,
     canInviteUsers: true,
     showAdvancedSettings: true,
-    features: ["sync", "logs", "errorMonitoring", "customRoles"],
+    syncIntervalHours: 1, // Still hourly, but could customize
+    features: ["sync", "logs", "auditLogs", "manualSync"],
+    manualSyncLimitPerConnectorPerDay: Infinity, // 🚀 unlimited
   },
 };

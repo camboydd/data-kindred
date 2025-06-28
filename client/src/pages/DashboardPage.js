@@ -8,7 +8,6 @@ import {
 } from "recharts";
 import { Activity, TrendingUp, Wrench, HelpCircle } from "lucide-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
-
 import { useAuth } from "../context/AuthContext";
 import "./DashboardPage.css";
 
@@ -145,7 +144,6 @@ const DashboardPage = () => {
     <div className={`dashboard-app-container ${darkMode ? "dark-mode" : ""}`}>
       <div className="dashboard-main-layout">
         <div className="dashboard-content-area">
-          {/* Welcome Section */}
           <div className="dashboard-welcome-intro">
             <div className="dashboard-welcome-left">
               <h2>Welcome!</h2>
@@ -155,8 +153,6 @@ const DashboardPage = () => {
                 integration so you can focus on insights, not pipelines.
               </p>
             </div>
-
-            {/* Setup Progress */}
             <Tooltip.Provider>
               <div className="dashboard-setup-inline">
                 <h4 className="setup-inline-heading">Setup Progress</h4>
@@ -210,13 +206,11 @@ const DashboardPage = () => {
             </Tooltip.Provider>
           </div>
 
-          {/* KPI SECTION */}
           <div className="dashboard-section dashboard-key-metrics">
             <div className="dashboard-section-title">
               <Activity className="dashboard-section-icon" />
               <h3>ETL Pipeline Summary</h3>
             </div>
-
             <div className="dashboard-kpi-grid">
               <div className="dashboard-kpi-card">
                 <h4 className="dashboard-kpi-title">Successful Runs</h4>
@@ -245,7 +239,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* CHART & RECENT JOBS */}
           <div className="dashboard-section dashboard-chart-work-row">
             <div className="dashboard-chart-wrapper">
               <div className="dashboard-section-title">

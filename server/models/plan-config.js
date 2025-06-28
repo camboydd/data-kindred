@@ -1,4 +1,4 @@
-// src/config/plan-config.js
+// src/models/plan-config.js
 
 export const PLAN_RULES = {
   Basic: {

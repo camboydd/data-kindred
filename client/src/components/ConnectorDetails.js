@@ -2,13 +2,16 @@ import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { formatDistanceToNowStrict } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import UpgradeModal from "../components/UpgradeModal";
+import { PLAN_RULES } from "../util/plan-config";
+
 import "./SyncManagementPage.css";
 
 const REFRESH_OPTIONS = [
   { label: "Last 7 days", value: "7d" },
   { label: "Last 30 days", value: "30d" },
   { label: "Last 90 days", value: "90d" },
-  { label: "Full refresh 🔒", value: "full", adminOnly: true },
+  //{ label: "Full refresh 🔒", value: "full", adminOnly: true },
 ];
 
 const ConnectorDetails = ({
@@ -26,6 +29,7 @@ const ConnectorDetails = ({
     rows: null,
     error: null,
   });
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const syncKey = `syncing_${connector?.connectorId}`;
 
@@ -76,6 +80,17 @@ const ConnectorDetails = ({
   }, [isLoading, connector?.connectorId]);
 
   const handleManualSync = async () => {
+    const isBasic = user?.plan === "Basic";
+    const limit =
+      PLAN_RULES[user?.plan]?.manualSyncLimitPerConnectorPerDay ?? 0;
+    const today = new Date().toISOString().split("T")[0];
+
+    const todaysLogs = logs.filter((log) => log.startedAt?.startsWith(today));
+
+    if (isBasic && todaysLogs.length >= limit) {
+      setShowUpgradeModal(true);
+      return;
+    }
     setIsLoading(true);
     localStorage.setItem(syncKey, "true");
     const toastId = toast.loading("Syncing...");
@@ -278,6 +293,12 @@ const ConnectorDetails = ({
           </div>
         )}
       </div>
+      {showUpgradeModal && (
+        <UpgradeModal
+          planName={user?.plan}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 };

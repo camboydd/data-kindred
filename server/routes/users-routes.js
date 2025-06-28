@@ -10,6 +10,7 @@ import {
   requestAccess,
   checkAuth,
   updateUser,
+  upgradePlan,
 } from "../controllers/users-controller.js";
 
 // import { getUsers, getCustomersByUserEmail } from "../controllers/users-controller.js";
@@ -22,6 +23,7 @@ userRouter.get("/check-auth", checkAuth, (req, res) => {
 
 // Public routes
 userRouter.post("/login", login);
+userRouter.post("/upgrade", checkAuth, upgradePlan);
 userRouter.get("/create-checkout-session", createCheckoutSession);
 userRouter.post("/signup", signup);
 userRouter.post("/logout", checkAuth, logout);

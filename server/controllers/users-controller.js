@@ -16,6 +16,46 @@ import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+const upgradePlan = async (req, res, next) => {
+  const accountId = req.user?.accountId;
+  const email = req.user?.email;
+  const { priceId } = req.body;
+
+  if (!priceId || !accountId) {
+    return next(new HttpError("Missing priceId or accountId.", 400));
+  }
+
+  try {
+    const connection = await connectToSnowflake();
+    const accountResult = await executeQuery(
+      connection,
+      `SELECT STRIPE_CUSTOMER_ID FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+      [accountId]
+    );
+
+    const stripeCustomerId = accountResult?.[0]?.STRIPE_CUSTOMER_ID;
+
+    if (!stripeCustomerId) {
+      return next(new HttpError("Stripe customer not found for account.", 404));
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      customer: stripeCustomerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { accountId, upgradedFrom: req.user?.plan || "unknown" },
+      success_url: `${process.env.FRONTEND_URL}/dashboard?upgrade=success`,
+      cancel_url: `${process.env.FRONTEND_URL}/dashboard?upgrade=cancel`,
+    });
+
+    res.status(200).json({ url: session.url });
+  } catch (err) {
+    console.error("❌ Error starting upgrade session:", err);
+    return next(new HttpError("Upgrade failed. Try again later.", 500));
+  }
+};
+
 const createCheckoutSession = async (req, res, next) => {
   const { priceId } = req.query;
   const accountId = req.user?.accountId;
@@ -183,13 +223,6 @@ const login = async (req, res, next) => {
     console.log("[LOGIN] Looking up user by email:", email);
     const user = await getUserByEmail(email);
     console.log("[LOGIN] User lookup result:", user);
-    const conn = await connectToSnowflake();
-    const result = await executeQuery(
-      conn,
-      `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
-      [user.account_id]
-    );
-    const plan = result?.[0]?.PLAN || "Basic";
 
     if (!user) {
       console.warn("[LOGIN] No user found with email:", email);
@@ -241,6 +274,22 @@ const login = async (req, res, next) => {
       });
     }
 
+    // 🔍 Fetch plan from Snowflake
+    let plan = undefined;
+    try {
+      const conn = await connectToSnowflake();
+      const result = await executeQuery(
+        conn,
+        `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+        [user.account_id]
+      );
+      plan = result?.[0]?.PLAN;
+      console.log("[LOGIN] Retrieved plan:", plan);
+    } catch (err) {
+      console.error("[LOGIN] Failed to fetch plan:", err);
+      // continue anyway with no plan
+    }
+
     console.log("[LOGIN] Password validated. Signing JWT...");
     const token = jwt.sign(
       {
@@ -248,7 +297,7 @@ const login = async (req, res, next) => {
         email: user.email,
         accountId: user.account_id,
         role: user.role,
-        plan, // ✅ include plan
+        ...(plan && { plan }), // only include if defined
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -281,7 +330,8 @@ const login = async (req, res, next) => {
       user: {
         email: user.email,
         role: user.role,
-        account_id: user.account_id,
+        accountId: user.account_id,
+        ...(plan && { plan }), // ⬅️ include plan in response
       },
     });
   } catch (err) {
@@ -289,7 +339,6 @@ const login = async (req, res, next) => {
     return next(new HttpError("Unexpected login error.", 500));
   }
 };
-
 const logout = async (req, res, next) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
@@ -313,22 +362,52 @@ const logout = async (req, res, next) => {
   res.status(200).json({ message: "Logged out successfully" });
 };
 
-const checkAuth = (req, res, next) => {
+const checkAuth = async (req, res, next) => {
   const token = req.cookies?.token;
-  if (!token) return res.status(401).json({ message: "Not authenticated" });
+  if (!token) {
+    console.warn("🔒 No token found in cookies.");
+    return res.status(401).json({ message: "Not authenticated" });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = {
-      email: decoded.email,
+    if (!decoded || !decoded.accountId) {
+      console.warn("⚠️ Decoded JWT missing accountId:", decoded);
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
+    const user = {
       id: decoded.userId,
-      role: decoded.role, // ✅ add this
-      accountId: decoded.accountId, // ✅ and this
+      email: decoded.email,
+      role: decoded.role,
+      accountId: decoded.accountId,
     };
 
+    // 🔍 Fetch plan from Snowflake
+    try {
+      const conn = await connectToSnowflake();
+      const result = await executeQuery(
+        conn,
+        `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+        [user.accountId]
+      );
+
+      const plan = result?.[0]?.PLAN;
+      if (plan) {
+        user.plan = plan;
+      } else {
+        console.warn("⚠️ No plan found for account:", user.accountId);
+      }
+    } catch (planErr) {
+      console.error("❌ Failed to fetch plan during auth:", planErr);
+      // still allow auth, but without plan
+    }
+
+    req.user = user;
     next();
   } catch (err) {
+    console.error("❌ JWT verification failed:", err.message);
     return res.status(401).json({ message: "Invalid token" });
   }
 };
@@ -690,4 +769,5 @@ export {
   requestPasswordReset,
   requestAccess,
   updateUser,
+  upgradePlan,
 };

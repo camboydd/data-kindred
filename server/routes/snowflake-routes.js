@@ -12,33 +12,57 @@ import {
   deleteSnowflakeConfigsByAccount,
 } from "../controllers/snowflake-controller.js";
 import { checkAuth } from "../controllers/users-controller.js";
+import { requireValidPlan } from "../util/require-valid-plan.js";
 
 const snowflakeRouter = express.Router();
 
-// Get all Snowflake configurations for the current user/account
-snowflakeRouter.get("/configs", checkAuth, getSnowflakeConfigs);
-
-snowflakeRouter.post("/configs/auth-method", checkAuth, getAuthMethod);
-
-snowflakeRouter.post("/configs/status", checkAuth, getSnowflakeConfigStatus);
-
-// Create or update a Snowflake configuration
-snowflakeRouter.post("/configs", checkAuth, createSnowflakeConfig);
-
-// Test a Snowflake connection
-snowflakeRouter.post("/configs/test", checkAuth, testSnowflakeConnection);
-
-snowflakeRouter.get("/oauth/authorize", authorizeSnowflakeOAuth);
-snowflakeRouter.post("/oauth/callback", handleOAuthCallback);
-snowflakeRouter.post("/oauth", checkAuth, saveOAuthConfig);
-
-// Delete a Snowflake configuration (if you support deletion)
-snowflakeRouter.delete("/configs/:id", checkAuth, deleteSnowflakeConfig);
-
+// Protected routes requiring both authentication and valid plan
+snowflakeRouter.get(
+  "/configs",
+  checkAuth,
+  requireValidPlan,
+  getSnowflakeConfigs
+);
+snowflakeRouter.post(
+  "/configs/auth-method",
+  checkAuth,
+  requireValidPlan,
+  getAuthMethod
+);
+snowflakeRouter.post(
+  "/configs/status",
+  checkAuth,
+  requireValidPlan,
+  getSnowflakeConfigStatus
+);
+snowflakeRouter.post(
+  "/configs",
+  checkAuth,
+  requireValidPlan,
+  createSnowflakeConfig
+);
+snowflakeRouter.post(
+  "/configs/test",
+  checkAuth,
+  requireValidPlan,
+  testSnowflakeConnection
+);
+snowflakeRouter.post("/oauth", checkAuth, requireValidPlan, saveOAuthConfig);
+snowflakeRouter.delete(
+  "/configs/:id",
+  checkAuth,
+  requireValidPlan,
+  deleteSnowflakeConfig
+);
 snowflakeRouter.post(
   "/configs/delete",
   checkAuth,
+  requireValidPlan,
   deleteSnowflakeConfigsByAccount
 );
+
+// Public routes (no auth required)
+snowflakeRouter.get("/oauth/authorize", authorizeSnowflakeOAuth);
+snowflakeRouter.post("/oauth/callback", handleOAuthCallback);
 
 export { snowflakeRouter };

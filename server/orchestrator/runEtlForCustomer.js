@@ -2,7 +2,10 @@ import crypto from "crypto";
 import axios from "axios";
 
 export async function runEtlForCustomer(connectorId, accountId, options = {}) {
-  const { manualSyncId = crypto.randomUUID() } = options;
+  const {
+    refreshWindow, // optional, used for manual syncs
+    manualSyncId = crypto.randomUUID(),
+  } = options;
 
   try {
     const result = await axios.post(
@@ -10,7 +13,7 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
       {
         connectorId,
         accountId,
-        refreshWindow,
+        ...(refreshWindow ? { refreshWindow } : {}),
         manualSyncId,
       }
     );
@@ -38,6 +41,7 @@ export async function runEtlForCustomer(connectorId, accountId, options = {}) {
     throw new Error(`ETL call failed: ${err.message}`);
   }
 }
+
 function aggregateErrorSummary(errors) {
   if (!Array.isArray(errors) || errors.length === 0) return null;
 

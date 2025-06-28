@@ -73,6 +73,8 @@ app.use(express.static(path.join(__dirname, "..", "client", "build")));
 const pathsWithoutAuth = [
   /^\/static\/.*/,
   "/",
+  "/signup",
+  "/upgrade",
   "/reset-password",
   "/forgot-password",
   "/user-registration",
@@ -106,45 +108,59 @@ const jwtMiddleware = jwt({
 });
 
 // Apply JWT unless public route
+// Apply JWT unless public route
 app.use((req, res, next) => {
   const isPublic = pathsWithoutAuth.some((pattern) =>
     pattern instanceof RegExp ? pattern.test(req.path) : pattern === req.path
   );
   if (isPublic) return next();
-  return jwtMiddleware(req, res, next);
-});
+  return jwtMiddleware(req, res, (err) => {
+    if (err) return next(err);
 
-// Plan enforcement middleware
-const requireValidPlan = async (req, res, next) => {
-  const allowedPlans = ["Basic", "Pro", "Enterprise"];
-  let plan = req.user?.plan;
-
-  if (!plan) {
-    try {
-      const conn = await connectToSnowflake();
-      const result = await executeQuery(
-        conn,
-        `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
-        [req.user?.accountId]
+    app.use((req, res, next) => {
+      const isPublic = pathsWithoutAuth.some((pattern) =>
+        pattern instanceof RegExp
+          ? pattern.test(req.path)
+          : pattern === req.path
       );
-      plan = result?.[0]?.PLAN;
-    } catch (err) {
-      console.error("Failed to fetch plan from DB:", err);
-      return res.status(500).json({ message: "Plan verification failed." });
-    }
-  }
+      if (isPublic) return next();
 
-  if (!allowedPlans.includes(plan)) {
-    console.warn(`❌ Access blocked. Invalid plan: ${plan}`);
-    return res.status(403).json({
-      success: false,
-      message:
-        "Your plan is inactive or missing. Please upgrade your subscription.",
+      return jwtMiddleware(req, res, async (err) => {
+        if (err) return next(err);
+
+        // 🔧 Patch req.user from decoded JWT
+        const { userId, email, role, accountId } = req.auth || {};
+        let plan = null;
+
+        if (accountId) {
+          try {
+            const conn = await connectToSnowflake();
+            const result = await executeQuery(
+              conn,
+              `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+              [accountId]
+            );
+            plan = result?.[0]?.PLAN;
+          } catch (err) {
+            console.error("❌ Failed to fetch plan from DB:", err);
+          }
+        }
+
+        req.user = {
+          id: userId,
+          email,
+          role,
+          accountId,
+          plan, // ✅ now included in request
+        };
+
+        next();
+      });
     });
-  }
 
-  next();
-};
+    next();
+  });
+});
 
 // === Mount routes ===
 app.use("/api/users", userRouter);
@@ -154,9 +170,9 @@ app.use("/api/audit", auditRouter);
 app.use("/api/stripe", stripeWebhookRouter);
 
 // Plan-protected routes
-app.use("/api/snowflake", requireValidPlan, snowflakeRouter);
-app.use("/api/run", requireValidPlan, runRouter);
-app.use("/api/etl", requireValidPlan, etlAnalyticsRouter);
+app.use("/api/snowflake", snowflakeRouter);
+app.use("/api/run", runRouter);
+app.use("/api/etl", etlAnalyticsRouter);
 
 // JWT error handler
 app.use((err, req, res, next) => {

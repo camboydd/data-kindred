@@ -1,25 +1,25 @@
+import axios from "axios";
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
+export const useLogout = () => {
+  const { logout } = useContext(AuthContext);
+  return logout;
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(undefined); // undefined = loading, null = not logged in, {} = user
+  const [user, setUser] = useState(undefined);
   const [authLoading, setAuthLoading] = useState(true);
-  const APP_API_URL = process.env.REACT_APP_API_URL;
 
   useEffect(() => {
     const checkLogin = async () => {
       try {
-        const res = await fetch(`${APP_API_URL}/api/users/check-auth`, {
-          credentials: "include", // This sends cookie
+        const res = await axios.get("/api/users/check-auth", {
+          withCredentials: true,
         });
-
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data.user);
-        } else {
-          setUser(null);
-        }
+        // ✅ Make sure plan is included in response
+        setUser(res.data.user);
       } catch (err) {
         console.error("Error checking auth:", err);
         setUser(null);
@@ -29,49 +29,40 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkLogin();
-  }, [APP_API_URL]);
+  }, []);
 
   const login = async (email, password, captchaToken) => {
     try {
-      const res = await fetch(`${APP_API_URL}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password, captchaToken }),
+      await axios.post(
+        "/api/users/login",
+        { email, password, captchaToken },
+        { withCredentials: true }
+      );
+
+      const res = await axios.get("/api/users/check-auth", {
+        withCredentials: true,
       });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const message = errorData.message || "Login failed";
-        const code = errorData.code || "UNKNOWN_ERROR";
-        return { success: false, message, code };
-      }
-
-      // 🧠 After login, confirm cookie is registered by Chrome
-      const authCheck = await fetch(`${APP_API_URL}/api/users/check-auth`, {
-        credentials: "include",
-      });
-
-      if (!authCheck.ok) {
-        throw new Error("Session check failed after login");
-      }
-
-      const data = await authCheck.json();
-      setUser(data.user);
+      setUser(res.data.user); // ✅ Includes plan
 
       return { success: true };
     } catch (err) {
       console.error("Login failed:", err);
-      return { success: false, message: err.message };
+      return {
+        success: false,
+        message: err.response?.data?.message || "Login failed",
+      };
     }
   };
 
   const logout = async () => {
-    await fetch(`${APP_API_URL}/api/users/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-    setUser(null);
+    try {
+      await axios.post("/api/users/logout");
+    } catch (err) {
+      console.warn("Logout error:", err);
+    } finally {
+      setUser(null);
+      window.location.href = "/login";
+    }
   };
 
   return (

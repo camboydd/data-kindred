@@ -56,10 +56,14 @@ const SyncManagementPage = () => {
   }, [user, authLoading]);
 
   useEffect(() => {
-    if (selectedConnectorId) {
-      fetchLogsForConnector(selectedConnectorId);
+    if (connectors.length > 0) {
+      connectors.forEach((connector) => {
+        if (!logsMap[connector.connectorId]) {
+          fetchLogsForConnector(connector.connectorId);
+        }
+      });
     }
-  }, [selectedConnectorId]);
+  }, [connectors]);
 
   const selectedConnector = connectors.find(
     (c) => c.connectorId === selectedConnectorId

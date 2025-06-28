@@ -2,25 +2,22 @@ import React, { useState } from "react";
 import "./OAuthSetupModal.css";
 
 const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
-
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [authUrl, setAuthUrl] = useState("");
   const [tokenUrl, setTokenUrl] = useState("");
   const [redirectUri, setRedirectUri] = useState("");
   const [scope, setScope] = useState("offline_access openid");
-  
 
   const handleSubmit = async () => {
     if (!clientId || !clientSecret || !authUrl || !tokenUrl || !redirectUri) {
-        alert("❌ All fields except scope are required.");
-        return;
-      }
-      
+      alert("❌ All fields except scope are required.");
+      return;
+    }
+
     const token = localStorage.getItem("token");
     const accountId = localStorage.getItem("accountId");
-    
-  
+
     const payload = {
       accountId,
       clientId,
@@ -30,8 +27,7 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
       redirectUri,
       scope,
     };
-    
-  
+
     const res = await fetch("/api/snowflake/oauth", {
       method: "POST",
       headers: {
@@ -40,17 +36,16 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
       },
       body: JSON.stringify(payload),
     });
-  
+
     const data = await res.json();
     if (res.ok) {
       onSuccess(); // Mark UI as configured
-      onClose();   // Close modal
+      onClose(); // Close modal
       if (onCompleteRedirect) onCompleteRedirect(accountId); // 🔁 Immediately redirect
     } else {
       alert(`❌ ${data.message}`);
     }
   };
-  
 
   return (
     <div className="modal-overlay">
@@ -59,12 +54,18 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
 
         <div className="form-group">
           <label>Client ID</label>
-          <input value={clientId} onChange={(e) => setClientId(e.target.value)} />
+          <input
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+          />
         </div>
 
         <div className="form-group">
           <label>Client Secret</label>
-          <input value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+          <input
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+          />
         </div>
 
         <div className="form-group">
@@ -74,12 +75,18 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
 
         <div className="form-group">
           <label>Token URL</label>
-          <input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} />
+          <input
+            value={tokenUrl}
+            onChange={(e) => setTokenUrl(e.target.value)}
+          />
         </div>
 
         <div className="form-group">
           <label>Redirect URI</label>
-          <input value={redirectUri} onChange={(e) => setRedirectUri(e.target.value)} />
+          <input
+            value={redirectUri}
+            onChange={(e) => setRedirectUri(e.target.value)}
+          />
         </div>
 
         <div className="form-group">
@@ -88,8 +95,12 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
         </div>
 
         <div className="modal-actions">
-          <button className="setup-button" onClick={handleSubmit}>Save</button>
-          <button className="setup-button cancel" onClick={onClose}>Cancel</button>
+          <button className="setup-button" onClick={handleSubmit}>
+            Save
+          </button>
+          <button className="setup-button cancel" onClick={onClose}>
+            Cancel
+          </button>
         </div>
       </div>
     </div>

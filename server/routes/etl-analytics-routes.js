@@ -3,15 +3,31 @@ import {
   getKpis,
   getHourlyPerformance,
   getRecentActivity,
-  getDailyVolume
+  getDailyVolume,
 } from "../controllers/etl-analytics-controller.js";
 import { checkAuth } from "../controllers/users-controller.js";
+import { requireValidPlan } from "../util/require-valid-plan.js";
 
 const etlAnalyticsRouter = express.Router();
 
-etlAnalyticsRouter.get("/kpis", checkAuth, getKpis);
-etlAnalyticsRouter.get("/hourly-performance", checkAuth, getHourlyPerformance);
-etlAnalyticsRouter.get("/recent-activity", checkAuth, getRecentActivity);
-etlAnalyticsRouter.get("/daily-volume", checkAuth, getDailyVolume);
+etlAnalyticsRouter.get("/kpis", checkAuth, requireValidPlan, getKpis);
+etlAnalyticsRouter.get(
+  "/hourly-performance",
+  checkAuth,
+  requireValidPlan,
+  getHourlyPerformance
+);
+etlAnalyticsRouter.get(
+  "/recent-activity",
+  checkAuth,
+  requireValidPlan,
+  getRecentActivity
+);
+etlAnalyticsRouter.get(
+  "/daily-volume",
+  checkAuth,
+  requireValidPlan,
+  getDailyVolume
+);
 
 export { etlAnalyticsRouter };

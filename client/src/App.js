@@ -30,12 +30,15 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { useAuth } from "./context/AuthContext";
 
+import UpgradePage from "./pages/UpgradePage";
+
 import "./App.css";
 import UserSettings from "./pages/UserSettings";
 import SignupPage from "./pages/SignupPage";
-
 const AppLayout = () => {
-  const { user } = useAuth();
+  const { user, authLoading } = useAuth();
+
+  if (authLoading) return null; // ⛔ Don't render routes until auth is resolved
 
   return (
     <div className="app-container">
@@ -55,8 +58,9 @@ const AppLayout = () => {
                 path="/snowflake/oauth/callback"
                 element={<OAuthCallbackPage />}
               />
-              <Route path="/login" element={<NotFoundPage />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+              <Route path="/upgrade" element={<UpgradePage />} />
               <Route path="*" element={<NotFoundPage />} />
             </>
           )}
@@ -152,9 +156,7 @@ const AppLayout = () => {
                   </PrivateRoute>
                 }
               />
-              {/* Redirect / to dashboard if logged in */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              {/* Catch-all 404 for logged-in users */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
           )}
