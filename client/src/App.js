@@ -47,7 +47,7 @@ const AppLayout = () => {
     <div className="app-container">
       {user && pathname !== "/upgrade" && <Navbar />}
 
-      <div className={user ? "routes-wrapper" : ""}>
+      <div className={user && pathname !== "/upgrade" ? "routes-wrapper" : ""}>
         <Routes>
           {/* Public Routes (only shown if not logged in) */}
           {!user && (

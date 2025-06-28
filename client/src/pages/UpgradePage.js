@@ -1,8 +1,43 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import kindredLogo from "../assets/images/kindred.png";
-import "./SignupPage.css"; // Reuse same styles for consistency
+import kindredLogo from "../assets/images/kindred_purple.png";
+import "./SignupPage.css";
 import { useAuth } from "../context/AuthContext";
+
+const plans = [
+  {
+    name: "Basic",
+    price: "$99/mo",
+    planParam: "basic",
+    description: "Perfect for small teams integrating a couple platforms.",
+    features: ["Up to 2 connectors", "Daily syncs", "Email support"],
+  },
+  {
+    name: "Pro",
+    price: "$199/mo",
+    planParam: "pro",
+    description:
+      "For teams that need richer integrations, manual control, and connector requests.",
+    features: [
+      "Up to 5 connectors",
+      "Hourly scheduled syncs",
+      "Developer support",
+      "Manual refresh syncs",
+    ],
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    planParam: "enterprise",
+    description: "For large teams that need flexibility, scale, and security.",
+    features: [
+      "Unlimited connectors",
+      "On-demand + scheduled syncs",
+      "Priority support",
+      "Dedicated onboarding",
+    ],
+  },
+];
 
 const priceMap = {
   basic: process.env.REACT_APP_PRICE_ID_BASIC,
@@ -12,7 +47,7 @@ const priceMap = {
 const UpgradePage = () => {
   const navigate = useNavigate();
   const { user, authLoading } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialPlan = searchParams.get("plan")?.toLowerCase() || "pro";
 
   const [plan, setPlan] = useState(initialPlan);
@@ -22,15 +57,18 @@ const UpgradePage = () => {
 
   useEffect(() => {
     setPriceId(priceMap[plan]);
+    setSearchParams({ plan });
   }, [plan]);
 
-  // 🚨 Redirect if not logged in
   useEffect(() => {
-    if (!authLoading && !user) {
-      const encoded = encodeURIComponent(`/upgrade?plan=${plan}`);
-      navigate(`/login?next=${encoded}`);
+    if (authLoading) return;
+    if (!user) {
+      const encoded = encodeURIComponent(
+        window.location.pathname + window.location.search
+      );
+      navigate(`/login?next=${encoded}`, { replace: true });
     }
-  }, [authLoading, user, plan, navigate]);
+  }, [authLoading, user, navigate]);
 
   const handleUpgrade = async () => {
     setSubmitting(true);
@@ -57,25 +95,46 @@ const UpgradePage = () => {
   };
 
   return (
-    <div className="signup-wrapper">
-      <div className="signup-bg" />
-
-      <div className="signup-card">
-        <div className="auth-header">
-          <img src={kindredLogo} alt="Kindred" className="signup-logo" />
-        </div>
-
-        <h2 className="brand-name">Upgrade Your Kindred Plan</h2>
-
-        <p className="plan-context">
-          You're upgrading to the <strong>{plan}</strong> plan.
+    <div className="signupPage">
+      <div className="signupPage-left">
+        <img src={kindredLogo} alt="Kindred" className="signupPage-logo" />
+        <h2>Upgrade your Kindred Plan</h2>
+        <p>
+          You’ve selected the <strong>{plan}</strong> plan.
         </p>
-
-        {error && <p className="error">{error}</p>}
-
-        <button onClick={handleUpgrade} disabled={submitting}>
-          {submitting ? "Redirecting to checkout..." : `Upgrade to ${plan}`}
+        {error && <p className="signupPage-error">{error}</p>}
+        {submitting && (
+          <p className="signupPage-success">Redirecting to checkout...</p>
+        )}
+        <button onClick={handleUpgrade} disabled={submitting} type="button">
+          {submitting ? "Processing..." : `Upgrade to ${plan}`}
         </button>
+      </div>
+
+      <div className="signupPage-right">
+        <h3>Choose Your Plan</h3>
+        <ul className="plan-options">
+          {plans.map((p) => (
+            <li
+              key={p.planParam}
+              className={`plan-option ${
+                plan === p.planParam ? "selected" : ""
+              }`}
+              onClick={() => setPlan(p.planParam)}
+            >
+              <div>
+                <div className="plan-name">{p.name}</div>
+                <div className="plan-price">{p.price}</div>
+              </div>
+              <div className="plan-description">{p.description}</div>
+              <ul className="plan-features">
+                {p.features.map((feat, i) => (
+                  <li key={i}>✓ {feat}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

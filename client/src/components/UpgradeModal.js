@@ -3,7 +3,7 @@ import "./UpgradeModal.css"; // Optional, for scoped styles
 
 const UpgradeModal = ({ planName, onClose }) => {
   const handleUpgrade = () => {
-    window.location.href = "https://app.datakindred.com/upgrade?plan=pro";
+    window.location.href = "http://localhost:3000/upgrade?plan=pro";
   };
 
   return (
