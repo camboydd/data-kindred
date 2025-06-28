@@ -1,7 +1,43 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import kindredLogo from "../assets/images/kindred.png";
+import kindredLogo from "../assets/images/kindred_purple.png";
 import "./SignupPage.css";
+
+const plans = [
+  {
+    name: "Basic",
+    price: "$99/mo",
+    planParam: "basic",
+    description: "Perfect for small teams integrating a couple platforms.",
+    features: ["Up to 2 connectors", "Daily syncs", "Email support"],
+  },
+  {
+    name: "Pro",
+    price: "$199/mo",
+    planParam: "pro",
+    description:
+      "For teams that need richer integrations, manual control, and connector requests.",
+    features: [
+      "Up to 5 connectors",
+      "Hourly scheduled syncs",
+      "Developer support",
+      "Manual refresh syncs",
+    ],
+    highlight: true,
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    planParam: "enterprise",
+    description: "For large teams that need flexibility, scale, and security.",
+    features: [
+      "Unlimited connectors",
+      "On-demand + scheduled syncs",
+      "Priority support",
+      "Dedicated onboarding",
+    ],
+  },
+];
 
 const priceMap = {
   basic: process.env.REACT_APP_PRICE_ID_BASIC,
@@ -24,7 +60,6 @@ const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState("");
 
-  // Update priceId if plan changes
   useEffect(() => {
     setPriceId(priceMap[plan]);
     setSearchParams({ plan });
@@ -46,7 +81,6 @@ const SignupPage = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Signup failed");
 
-      // Show success message briefly
       setTimeout(() => {
         navigate(`/start-checkout?priceId=${priceId}`);
       }, 1500);
@@ -54,10 +88,6 @@ const SignupPage = () => {
       setError(err.message);
       setSubmitting(false);
     }
-  };
-
-  const togglePlan = () => {
-    setPlan(plan === "basic" ? "pro" : "basic");
   };
 
   const evaluateStrength = (value) => {
@@ -75,24 +105,10 @@ const SignupPage = () => {
   };
 
   return (
-    <div className="signup-wrapper">
-      <div className="signup-bg" />
-
-      <div className="signup-card">
-        <div className="auth-header">
-          <img src={kindredLogo} alt="Kindred" className="signup-logo" />
-        </div>
-
-        <h2 className="brand-name">Create your Kindred account</h2>
-
-        <p className="plan-context">
-          You’re signing up for the <strong>{plan}</strong> plan.
-          <br />
-          <button type="button" className="toggle-plan" onClick={togglePlan}>
-            Switch to {plan === "basic" ? "Pro" : "Basic"}
-          </button>
-        </p>
-
+    <div className="signupPage">
+      <div className="signupPage-left">
+        <img src={kindredLogo} alt="Kindred" className="signupPage-logo" />
+        <h2>Create your Kindred account</h2>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
@@ -101,14 +117,12 @@ const SignupPage = () => {
             onChange={(e) => setName(e.target.value)}
             required
           />
-
           <input
             type="text"
             placeholder="Company or Team Name"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
           />
-
           <input
             type="email"
             placeholder="Email address"
@@ -116,8 +130,7 @@ const SignupPage = () => {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-
-          <div className="password-group">
+          <div className="signupPage-passwordGroup">
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Create a password"
@@ -127,31 +140,55 @@ const SignupPage = () => {
             />
             <button
               type="button"
-              className="show-password-toggle"
+              className="signupPage-showPassword"
               onClick={() => setShowPassword((prev) => !prev)}
             >
               {showPassword ? "Hide" : "Show"}
             </button>
           </div>
-
           {password && (
-            <div className={`password-strength ${passwordStrength}`}>
+            <div className={`signupPage-passwordStrength ${passwordStrength}`}>
               Password strength: <strong>{passwordStrength}</strong>
             </div>
           )}
-
-          {error && <p className="error">{error}</p>}
-
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Creating account..." : `Sign Up for ${plan}`}
-          </button>
-
+          {error && <p className="signupPage-error">{error}</p>}
           {submitting && (
-            <p className="success-message">
+            <p className="signupPage-success">
               Almost there... redirecting to checkout
             </p>
           )}
+          <button type="submit" disabled={submitting}>
+            {submitting
+              ? "Creating account..."
+              : `Sign Up for ${plan.charAt(0).toUpperCase() + plan.slice(1)}`}
+          </button>
         </form>
+      </div>
+
+      <div className="signupPage-right">
+        <h3>Choose Your Plan</h3>
+        <ul className="plan-options">
+          {plans.map((p) => (
+            <li
+              key={p.planParam}
+              className={`plan-option ${
+                plan === p.planParam ? "selected" : ""
+              }`}
+              onClick={() => setPlan(p.planParam)}
+            >
+              <div>
+                <div className="plan-name">{p.name}</div>
+                <div className="plan-price">{p.price}</div>
+              </div>
+              <div className="plan-description">{p.description}</div>
+              <ul className="plan-features">
+                {p.features.map((feat, i) => (
+                  <li key={i}>✓ {feat}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

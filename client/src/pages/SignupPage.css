@@ -1,175 +1,211 @@
 /* === WRAPPER === */
-.signup-wrapper {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: #f8fafc;
-    font-family: 'Inter', sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-    box-sizing: border-box;
-    overflow-y: auto;
-    z-index: 0;
-  }
+.signupPage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3rem;
+  padding: 4rem 2rem;
+  width: 100vw;
+  height: 100vh;
+  margin: 0 auto;
+  font-family: 'Inter', sans-serif;
+  box-sizing: border-box;
   
-  /* === FLOATING BACKGROUND EFFECT === */
-  .signup-bg {
-    position: absolute;
-    top: -20%;
-    left: -10%;
-    width: 150%;
-    height: 150%;
-    background: radial-gradient(ellipse at center, rgba(79, 70, 229, 0.06), transparent 70%);
-    z-index: -1;
-    animation: float 25s ease-in-out infinite;
-  }
-  
-  @keyframes float {
-    0%   { transform: translateY(0); }
-    50%  { transform: translateY(10px); }
-    100% { transform: translateY(0); }
-  }
-  
-  /* === CARD === */
-  .signup-card {
-    margin: 0;
-    background: #ffffff;
-    padding: 3rem 2rem;
-    border-radius: 1rem;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
-    max-width: 440px;
-    width: 100%;
-    text-align: center;
-    border: 1px solid #e2e8f0;
-    z-index: 1;
-  }
-  
-  /* === HEADER === */
-  .signup-logo {
-    height: 40px;
-    margin-bottom: 1rem;
-  }
-  
-  .plan-context {
-    color: #64748b;
-    font-size: 0.95rem;
-    margin-bottom: 1.5rem;
-  }
-  
-  /* === FORM === */
-  .signup-card form {
-    display: flex;
+}
+
+/* === LEFT SIDE === */
+.signupPage-left {
+  flex: 1;
+  max-width: 500px;
+  width: 100%;
+}
+
+
+.signupPage-logo {
+  height: 48px;
+  margin-bottom: 1.5rem;
+}
+
+.signupPage-left h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: #0f172a;
+}
+
+.signupPage-left form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.signupPage-left input {
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  background-color: #fff;
+  transition: border 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.signupPage-left input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+  outline: none;
+}
+
+.signupPage-passwordGroup {
+  position: relative;
+}
+
+.signupPage-showPassword {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.signupPage-passwordStrength {
+  font-size: 0.85rem;
+  margin-top: -0.5rem;
+}
+
+.signupPage-passwordStrength.weak {
+  color: #ef4444;
+}
+.signupPage-passwordStrength.medium {
+  color: #f59e0b;
+}
+.signupPage-passwordStrength.strong {
+  color: #22c55e;
+}
+
+.signupPage-left button[type="submit"] {
+  background-color: #4f46e5;
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+}
+
+.signupPage-left button[type="submit"]:hover {
+  background-color: #4338ca;
+}
+
+.signupPage-error {
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.signupPage-success {
+  color: #16a34a;
+  font-size: 0.9rem;
+}
+
+/* === RIGHT SIDE === */
+.signupPage-right {
+  flex: 1;
+  max-width: 600px;
+}
+
+.signupPage-right h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #0f172a;
+}
+
+.plan-options {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  max-height: 620px;
+}
+
+.plan-option {
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr;
+  gap: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.plan-option:hover {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+}
+
+.plan-option.selected {
+  border: 2px solid #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.plan-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.plan-price {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #475569;
+  margin-top: 0.25rem;
+}
+
+.plan-description {
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.plan-features li {
+  margin-bottom: 0.25rem;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 960px) {
+  .signupPage {
     flex-direction: column;
-    gap: 1.25rem;
-    text-align: left;
+    align-items: center;
+    gap: 2rem;
   }
-  
-  .signup-card input {
-    padding: 0.75rem 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    width: 100%;
-    box-sizing: border-box;
-    background-color: #fff;
-    color: #0f172a;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  .signupPage-left,
+  .signupPage-right {
+    max-width: 100%;
   }
-  
-  .signup-card input:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
-    outline: none;
+
+  .plan-option {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
   }
-  
-  /* === BUTTON === */
-  .signup-card button[type="submit"] {
-    background-color: #4f46e5;
-    color: white;
-    font-weight: 600;
-    font-size: 1rem;
-    padding: 0.75rem 1rem;
-    border: none;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.25s ease;
-  }
-  
-  .signup-card button[type="submit"]:hover {
-    background-color: #4338ca;
-  }
-  
-  /* === ERROR MESSAGE === */
-  .error {
-    color: #ef4444;
-    font-size: 0.9rem;
-    text-align: center;
-    margin-top: -0.5rem;
-  }
-  .toggle-plan {
-    display: inline-block;
-    margin-top: 0.5rem;
-    font-size: 0.85rem;
-    color: #4f46e5;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-  }
-  
-  .toggle-plan:hover {
-    text-decoration: underline;
-    color: #4338ca;
-  }
-  
-  .password-group {
-    position: relative;
-  }
-  
-  .show-password-toggle {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #4f46e5;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  
-  .password-strength {
-    font-size: 0.8rem;
-    margin-top: -0.5rem;
-    margin-bottom: 0.5rem;
-    text-align: left;
-  }
-  
-  .password-strength.weak {
-    color: #ef4444;
-  }
-  
-  .password-strength.medium {
-    color: #f59e0b;
-  }
-  
-  .password-strength.strong {
-    color: #22c55e;
-  }
-  
-  /* === RESPONSIVE === */
-  @media (max-width: 480px) {
-    .signup-wrapper {
-      padding: 1.5rem;
-    }
-  
-    .signup-card {
-      padding: 2rem 1.5rem;
-    }
-  }
-  
+}

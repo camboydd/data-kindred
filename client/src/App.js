@@ -35,14 +35,17 @@ import UpgradePage from "./pages/UpgradePage";
 import "./App.css";
 import UserSettings from "./pages/UserSettings";
 import SignupPage from "./pages/SignupPage";
+
 const AppLayout = () => {
   const { user, authLoading } = useAuth();
+  const location = useLocation();
+  const { pathname } = location;
 
   if (authLoading) return null; // ⛔ Don't render routes until auth is resolved
 
   return (
     <div className="app-container">
-      {user && <Navbar />}
+      {user && pathname !== "/upgrade" && <Navbar />}
 
       <div className={user ? "routes-wrapper" : ""}>
         <Routes>
@@ -60,11 +63,11 @@ const AppLayout = () => {
               />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
-              <Route path="/upgrade" element={<UpgradePage />} />
               <Route path="*" element={<NotFoundPage />} />
             </>
           )}
-
+          {/* ✅ Always available */}
+          <Route path="/upgrade" element={<UpgradePage />} />
           {/* Private Routes (only shown if logged in) */}
           {user && (
             <>
