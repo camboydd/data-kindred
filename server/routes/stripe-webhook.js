@@ -25,7 +25,6 @@ stripeRouter.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // ✅ Handle checkout completion
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const metadata = session.metadata || {};
@@ -36,7 +35,14 @@ stripeRouter.post(
       const { email, name, company, plan, stripeCustomerId } = metadata;
       const subscriptionId = session.subscription;
 
-      if (!email || !name || !plan || !stripeCustomerId || !subscriptionId) {
+      if (
+        !email ||
+        !name ||
+        !company ||
+        !plan ||
+        !stripeCustomerId ||
+        !subscriptionId
+      ) {
         console.warn("⚠️ Missing one or more required metadata fields.");
         return res.status(400).send("Missing metadata");
       }
@@ -44,43 +50,53 @@ stripeRouter.post(
       try {
         const conn = await connectToSnowflake();
 
-        // Check for existing user
-        const existing = await executeQuery(
+        // 👀 Check if user already exists
+        const existingUser = await executeQuery(
           conn,
           `SELECT ID FROM KINDRED.PUBLIC.USERS WHERE EMAIL = ?`,
           [email]
         );
 
-        if (existing.length > 0) {
+        if (existingUser.length > 0) {
           console.log(
             `👤 User already exists for ${email}, skipping creation.`
           );
           return res.status(200).send("ok");
         }
 
-        // Create user ID + password setup token
+        // 👤 Create account
+        const accountId = crypto.randomUUID();
+        await executeQuery(
+          conn,
+          `
+          INSERT INTO KINDRED.PUBLIC.ACCOUNTS 
+          (ID, NAME, PLAN, STRIPE_CUSTOMER_ID, STRIPE_SUBSCRIPTION_ID)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+          [accountId, company, plan, stripeCustomerId, subscriptionId]
+        );
+
+        // 👤 Create user tied to the account
         const userId = crypto.randomUUID();
         const setupToken = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
 
-        console.log("🆕 Creating user and storing password setup token...");
-
-        // Create user in USERS table
         await executeQuery(
           conn,
           `
           INSERT INTO KINDRED.PUBLIC.USERS 
-          (ID, EMAIL, NAME, COMPANY, STRIPE_CUSTOMER_ID, STRIPE_SUBSCRIPTION_ID, PLAN)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          (ID, ACCOUNT_ID, EMAIL, NAME)
+          VALUES (?, ?, ?, ?)
         `,
-          [userId, email, name, company, stripeCustomerId, subscriptionId, plan]
+          [userId, accountId, email, name]
         );
 
-        // Insert setup token
+        // 🪪 Store password setup token
         await executeQuery(
           conn,
           `
-          INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS (EMAIL, TOKEN, EXPIRES_AT, USED)
+          INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
+          (EMAIL, TOKEN, EXPIRES_AT, USED)
           VALUES (?, ?, ?, FALSE)
         `,
           [email, setupToken, expiresAt.toISOString()]
@@ -88,22 +104,19 @@ stripeRouter.post(
 
         console.log(`🔐 Setup token stored. Sending email to ${email}...`);
 
-        // Send email
         await sendSetupPasswordEmail(email, setupToken);
 
-        console.log(`✅ User created and email sent to ${email}`);
+        console.log(`✅ Account and user created. Email sent to ${email}`);
         return res.status(200).send("ok");
       } catch (err) {
-        console.error("❌ Failed during user creation or email step:", err);
+        console.error("❌ Failed during account/user creation:", err);
         return res.status(500).send("User creation failed.");
       }
     }
 
-    // ✅ Plan update
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object;
-      const accountId =
-        subscription.metadata?.accountId || subscription.metadata?.account_id;
+      const stripeCustomerId = subscription.customer;
       const priceId =
         subscription.items?.data?.[0]?.price?.id || subscription.plan?.id;
 
@@ -112,24 +125,27 @@ stripeRouter.post(
       else if (priceId === process.env.PRO_PRICE_ID) plan = "Pro";
       else if (priceId === process.env.ENTERPRISE_PRICE_ID) plan = "Enterprise";
 
-      if (!accountId || !plan) {
-        console.warn("⚠️ Missing accountId or plan in subscription update");
+      if (!stripeCustomerId || !plan) {
+        console.warn("⚠️ Missing stripeCustomerId or unmatched plan ID");
         return res.status(200).send("ok");
       }
 
       try {
         const conn = await connectToSnowflake();
+
         await executeQuery(
           conn,
           `
-          UPDATE KINDRED.PUBLIC.ACCOUNTS
-          SET PLAN = ?, PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = ?
-          WHERE ID = ?
-        `,
-          [plan, subscription.id, accountId]
+      UPDATE KINDRED.PUBLIC.ACCOUNTS
+      SET PLAN = ?, PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = ?
+      WHERE STRIPE_CUSTOMER_ID = ?
+    `,
+          [plan, subscription.id, stripeCustomerId]
         );
 
-        console.log(`🔄 Updated account ${accountId} to plan "${plan}"`);
+        console.log(
+          `🔄 Updated account with STRIPE_CUSTOMER_ID ${stripeCustomerId} to plan "${plan}"`
+        );
       } catch (err) {
         console.error("❌ Failed to update account plan:", err);
       }
@@ -140,26 +156,33 @@ stripeRouter.post(
     // ✅ Subscription canceled
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object;
-      const accountId =
-        subscription.metadata?.accountId || subscription.metadata?.account_id;
+      const stripeCustomerId = subscription.customer;
 
-      if (!accountId) return res.status(200).send("ok");
+      if (!stripeCustomerId) {
+        console.warn(
+          "⚠️ Missing stripeCustomerId in subscription.deleted event"
+        );
+        return res.status(200).send("ok");
+      }
 
       try {
         const conn = await connectToSnowflake();
+
         await executeQuery(
           conn,
           `
-          UPDATE KINDRED.PUBLIC.ACCOUNTS
-          SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
-          WHERE ID = ?
-        `,
-          [accountId]
+      UPDATE KINDRED.PUBLIC.ACCOUNTS
+      SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
+      WHERE STRIPE_CUSTOMER_ID = ?
+    `,
+          [stripeCustomerId]
         );
 
-        console.log(`⚠️ Marked account ${accountId} as 'Canceled'`);
+        console.log(
+          `⚠️ Marked account with STRIPE_CUSTOMER_ID ${stripeCustomerId} as 'Canceled'`
+        );
       } catch (err) {
-        console.error("❌ Failed to mark account canceled:", err.message);
+        console.error("❌ Failed to mark account as canceled:", err.message);
       }
 
       return res.status(200).send("ok");
