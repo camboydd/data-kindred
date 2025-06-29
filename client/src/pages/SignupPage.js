@@ -42,6 +42,7 @@ const plans = [
 const priceMap = {
   basic: process.env.REACT_APP_PRICE_ID_BASIC,
   pro: process.env.REACT_APP_PRICE_ID_PRO,
+  enterprise: null, // or custom handling later
 };
 
 const SignupPage = () => {
@@ -71,19 +72,19 @@ const SignupPage = () => {
     setError(null);
 
     try {
-      const res = await fetch("/api/users/signup", {
+      const res = await fetch("/api/users/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, name, company, password, plan }),
+        body: JSON.stringify({ name, email, company, plan }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Signup failed");
+      if (!res.ok || !data.url)
+        throw new Error("Failed to create checkout session");
 
-      setTimeout(() => {
-        navigate(`/start-checkout?priceId=${priceId}`);
-      }, 1500);
+      // Redirect to Stripe
+      window.location.href = data.url;
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

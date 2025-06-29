@@ -1,16 +1,17 @@
 import express from "express";
 import Stripe from "stripe";
+import crypto from "crypto";
 import {
   connectToSnowflake,
   executeQuery,
 } from "../util/snowflake-connection.js";
+import { sendSetupPasswordEmail } from "../util/email-utils.js";
 
-const router = express.Router();
+const stripeRouter = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Ensure raw body is used for Stripe signature verification
-router.post(
+stripeRouter.post(
   "/webhook",
   express.raw({ type: "application/json" }),
   async (req, res) => {
@@ -24,34 +25,86 @@ router.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Handle relevant subscription events
-    if (
-      event.type === "checkout.session.completed" ||
-      event.type === "customer.subscription.updated"
-    ) {
-      const data = event.data.object;
+    // ✅ Account creation from successful checkout
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const { email, name, company, plan, stripeCustomerId } =
+        session.metadata || {};
+      const subscriptionId = session.subscription;
 
-      const accountId =
-        data.metadata?.accountId || data.metadata?.account_id || null;
-
-      const subscription = data.subscription
-        ? await stripe.subscriptions.retrieve(data.subscription)
-        : data;
-
-      const priceId =
-        subscription.items?.data?.[0]?.price?.id ||
-        subscription.plan?.id ||
-        null;
-
-      if (!accountId || !priceId) {
-        console.warn("⚠️  Missing accountId or priceId in event");
-        return res.status(200).send("ok");
+      if (!email || !name || !plan || !stripeCustomerId || !subscriptionId) {
+        console.warn("⚠️ Missing metadata in checkout.session.completed");
+        return res.status(400).send("Missing metadata");
       }
+
+      try {
+        const conn = await connectToSnowflake();
+
+        const existing = await executeQuery(
+          conn,
+          `SELECT ID FROM KINDRED.PUBLIC.USERS WHERE EMAIL = ?`,
+          [email]
+        );
+
+        if (existing.length > 0) {
+          console.log(`👤 User already exists for ${email}`);
+          return res.status(200).send("ok");
+        }
+
+        // Generate user ID and setup token
+        const userId = crypto.randomUUID();
+        const setupToken = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+
+        // Create new user
+        await executeQuery(
+          conn,
+          `
+          INSERT INTO KINDRED.PUBLIC.USERS 
+          (ID, EMAIL, NAME, COMPANY, STRIPE_CUSTOMER_ID, STRIPE_SUBSCRIPTION_ID, PLAN)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+          [userId, email, name, company, stripeCustomerId, subscriptionId, plan]
+        );
+
+        // Store password setup token
+        await executeQuery(
+          conn,
+          `
+          INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS (EMAIL, TOKEN, EXPIRES_AT, USED)
+          VALUES (?, ?, ?, FALSE)
+        `,
+          [email, setupToken, expiresAt.toISOString()]
+        );
+
+        // Send branded password setup email
+        await sendSetupPasswordEmail(email, setupToken);
+
+        console.log(`✅ Created user and sent setup email to ${email}`);
+      } catch (err) {
+        console.error("❌ Error creating user from webhook:", err);
+      }
+
+      return res.status(200).send("ok");
+    }
+
+    // ✅ Subscription plan update
+    if (event.type === "customer.subscription.updated") {
+      const subscription = event.data.object;
+      const accountId =
+        subscription.metadata?.accountId || subscription.metadata?.account_id;
+      const priceId =
+        subscription.items?.data?.[0]?.price?.id || subscription.plan?.id;
 
       let plan = null;
       if (priceId === process.env.BASIC_PRICE_ID) plan = "Basic";
       else if (priceId === process.env.PRO_PRICE_ID) plan = "Pro";
       else if (priceId === process.env.ENTERPRISE_PRICE_ID) plan = "Enterprise";
+
+      if (!accountId || !plan) {
+        console.warn("⚠️ Missing accountId or plan in subscription update");
+        return res.status(200).send("ok");
+      }
 
       try {
         const conn = await connectToSnowflake();
@@ -65,15 +118,19 @@ router.post(
           [plan, subscription.id, accountId]
         );
 
-        console.log(`✅ Updated account ${accountId} to plan "${plan}"`);
+        console.log(`🔄 Updated account ${accountId} to plan "${plan}"`);
       } catch (err) {
         console.error("❌ Failed to update Snowflake account:", err.message);
       }
+
+      return res.status(200).send("ok");
     }
 
+    // ✅ Subscription cancellation
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object;
-      const accountId = subscription.metadata?.accountId;
+      const accountId =
+        subscription.metadata?.accountId || subscription.metadata?.account_id;
 
       if (!accountId) return res.status(200).send("ok");
 
@@ -82,16 +139,14 @@ router.post(
         await executeQuery(
           conn,
           `
-              UPDATE KINDRED.PUBLIC.ACCOUNTS
-              SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
-              WHERE ID = ?
-            `,
+          UPDATE KINDRED.PUBLIC.ACCOUNTS
+          SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
+          WHERE ID = ?
+        `,
           [accountId]
         );
 
-        console.log(
-          `⚠️ Subscription cancelled. Marked account ${accountId} as 'Canceled'`
-        );
+        console.log(`⚠️ Marked account ${accountId} as 'Canceled'`);
       } catch (err) {
         console.error("❌ Failed to mark account as canceled:", err.message);
       }
@@ -99,8 +154,9 @@ router.post(
       return res.status(200).send("ok");
     }
 
+    // ✅ Unhandled event types
     res.status(200).send("ok");
   }
 );
 
-export default router;
+export default stripeRouter;

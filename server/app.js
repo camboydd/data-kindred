@@ -14,7 +14,7 @@ import { connectorsRouter } from "./routes/connectors-routes.js";
 import { runRouter } from "./routes/run-routes.js";
 import { auditRouter } from "./routes/audit-routes.js";
 import { etlAnalyticsRouter } from "./routes/etl-analytics-routes.js";
-import stripeWebhookRouter from "./routes/stripe-webhook.js";
+import stripeRouter from "./routes/stripe-webhook.js";
 import {
   connectToSnowflake,
   executeQuery,
@@ -99,6 +99,8 @@ const pathsWithoutAuth = [
   "/api/run", // keep open for now
   /^\/api\/snowflake\/oauth\/.*/,
   "/api/users/check-auth",
+  "/api/users/signup",
+  "/api/users/create-checkout-session",
 ];
 
 const jwtMiddleware = jwt({
@@ -167,7 +169,7 @@ app.use("/api/users", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/connectors", connectorsRouter);
 app.use("/api/audit", auditRouter);
-app.use("/api/stripe", stripeWebhookRouter);
+app.use("/api/stripe", stripeRouter);
 
 // Plan-protected routes
 app.use("/api/snowflake", snowflakeRouter);

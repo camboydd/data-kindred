@@ -13,8 +13,68 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { createStripeCustomer } from "../util/stripe.js";
 import Stripe from "stripe";
+import { sendSetupPasswordEmail } from "../util/email-utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const resendSetupToken = async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) return next(new HttpError("Email is required.", 400));
+
+  try {
+    const conn = await connectToSnowflake();
+
+    const userResult = await executeQuery(
+      conn,
+      `SELECT ID FROM KINDRED.PUBLIC.USERS WHERE EMAIL = ?`,
+      [email]
+    );
+    if (!userResult.length) {
+      return next(new HttpError("No user found with that email.", 404));
+    }
+
+    // 🧠 Check last sent token timestamp
+    const recentToken = await executeQuery(
+      conn,
+      `
+      SELECT EXPIRES_AT, CREATED_AT 
+      FROM KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
+      WHERE EMAIL = ? AND USED = FALSE
+      ORDER BY CREATED_AT DESC LIMIT 1
+    `,
+      [email]
+    );
+
+    if (
+      recentToken.length &&
+      new Date(recentToken[0].CREATED_AT) >
+        new Date(Date.now() - 10 * 60 * 1000)
+    ) {
+      return next(
+        new HttpError("Please wait before requesting another email.", 429)
+      );
+    }
+
+    // ✅ Generate and insert new token
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const createdAt = new Date();
+
+    await executeQuery(
+      conn,
+      `INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS (EMAIL, TOKEN, EXPIRES_AT, CREATED_AT, USED)
+       VALUES (?, ?, ?, ?, FALSE)`,
+      [email, token, expiresAt.toISOString(), createdAt.toISOString()]
+    );
+
+    await sendSetupPasswordEmail(email, token);
+
+    res.status(200).json({ message: "Setup email resent." });
+  } catch (err) {
+    console.error("❌ Failed to resend setup token:", err);
+    return next(new HttpError("Could not resend setup email.", 500));
+  }
+};
 
 const upgradePlan = async (req, res, next) => {
   const accountId = req.user?.accountId;
@@ -57,35 +117,33 @@ const upgradePlan = async (req, res, next) => {
 };
 
 const createCheckoutSession = async (req, res, next) => {
-  const { priceId } = req.query;
-  const accountId = req.user?.accountId;
-  const email = req.user?.email;
+  const { name, email, company, plan } = req.body;
 
-  if (!priceId || !accountId) {
-    return next(new HttpError("Missing priceId or accountId.", 400));
+  if (!email || !name || !plan) {
+    return next(new HttpError("Missing required fields.", 400));
   }
 
   try {
-    const connection = await connectToSnowflake();
-    const accountResult = await executeQuery(
-      connection,
-      `SELECT STRIPE_CUSTOMER_ID FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
-      [accountId]
-    );
-
-    const stripeCustomerId = accountResult?.[0]?.STRIPE_CUSTOMER_ID;
-
-    if (!stripeCustomerId) {
-      return next(new HttpError("Stripe customer not found for account.", 404));
-    }
+    // Create customer first or reuse existing one
+    const customer = await stripe.customers.create({
+      email,
+      name,
+      metadata: { email, company },
+    });
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
-      customer: stripeCustomerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { accountId },
-      success_url: `${process.env.FRONTEND_URL}/dashboard?checkout=success`,
+      customer: customer.id,
+      line_items: [{ price: getPriceIdForPlan(plan), quantity: 1 }],
+      metadata: {
+        email,
+        name,
+        company,
+        plan,
+        stripeCustomerId: customer.id,
+      },
+      success_url: `${process.env.FRONTEND_URL}/checkout-success`,
       cancel_url: `${process.env.FRONTEND_URL}/pricing?checkout=cancel`,
     });
 
@@ -93,6 +151,18 @@ const createCheckoutSession = async (req, res, next) => {
   } catch (err) {
     console.error("❌ Error creating Stripe Checkout Session:", err);
     return next(new HttpError("Could not start Stripe Checkout.", 500));
+  }
+};
+
+// utility
+const getPriceIdForPlan = (plan) => {
+  switch (plan.toLowerCase()) {
+    case "basic":
+      return process.env.BASIC_PRICE_ID;
+    case "pro":
+      return process.env.PRO_PRICE_ID;
+    default:
+      throw new Error("Invalid plan type");
   }
 };
 
@@ -440,43 +510,90 @@ const setupPassword = async (req, res, next) => {
     const result = await executeQuery(
       connection,
       `
-      SELECT ID, EMAIL FROM KINDRED.PUBLIC.USERS 
-      WHERE RESET_TOKEN = ? AND RESET_EXPIRES_AT > CURRENT_TIMESTAMP()
+      SELECT EMAIL, EXPIRES_AT, USED 
+      FROM KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
+      WHERE TOKEN = ?
     `,
       [token]
     );
 
-    if (!result.length) {
+    const tokenData = result[0];
+    if (
+      !tokenData ||
+      tokenData.USED ||
+      new Date(tokenData.EXPIRES_AT) < new Date()
+    ) {
       return next(new HttpError("Invalid or expired token.", 400));
     }
 
-    const userId = result[0].ID;
-    const email = result[0].EMAIL;
+    const email = tokenData.EMAIL;
+    const userResult = await executeQuery(
+      connection,
+      `SELECT ID FROM KINDRED.PUBLIC.USERS WHERE EMAIL = ?`,
+      [email]
+    );
+
+    if (!userResult.length) {
+      return next(new HttpError("User not found.", 404));
+    }
+
+    const userId = userResult[0].ID;
     const hashed = await bcrypt.hash(password, 12);
 
     await executeQuery(
       connection,
       `
       UPDATE KINDRED.PUBLIC.USERS 
-      SET PASSWORD_HASH = ?, RESET_TOKEN = NULL, RESET_EXPIRES_AT = NULL 
+      SET PASSWORD_HASH = ? 
       WHERE ID = ?
     `,
       [hashed, userId]
     );
 
+    await executeQuery(
+      connection,
+      `
+      UPDATE KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
+      SET USED = TRUE 
+      WHERE TOKEN = ?
+    `,
+      [token]
+    );
+
     await logAuditEvent({
-      accountId: req.user?.accountId || null,
-      initiatorAccountId: req.user?.accountId || null,
-      initiatorEmail: req.user?.email || email,
+      accountId: null,
+      initiatorAccountId: null,
+      initiatorEmail: email,
       actorEmail: email,
       action: "password_set",
       targetEntity: userId,
       status: "success",
-      metadata: { ip, method: "token" },
+      metadata: { ip, method: "setup_token" },
     });
 
-    res.status(200).json({ message: "Password set successfully." });
+    // 🔐 Auto-login
+    const jwtToken = jwt.sign(
+      {
+        userId,
+        email,
+        role: "user",
+        accountId: null,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res
+      .cookie("token", jwtToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 1000 * 60 * 60 * 24 * 7,
+      })
+      .status(200)
+      .json({ message: "Password set and user logged in." });
   } catch (err) {
+    console.error("❌ Setup password error:", err);
     return next(new HttpError("Password setup failed.", 500));
   }
 };
@@ -785,4 +902,5 @@ export {
   requestAccess,
   updateUser,
   upgradePlan,
+  resendSetupToken,
 };

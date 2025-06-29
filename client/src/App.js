@@ -31,6 +31,7 @@ import Footer from "./components/Footer";
 import { useAuth } from "./context/AuthContext";
 
 import UpgradePage from "./pages/UpgradePage";
+import CheckoutSuccessPage from "./pages/CheckoutSuccessPage";
 
 import "./App.css";
 import UserSettings from "./pages/UserSettings";
@@ -53,6 +54,10 @@ const AppLayout = () => {
           {!user && (
             <>
               <Route path="/" element={<LoginPage />} />
+              <Route
+                path="/checkout-success"
+                element={<CheckoutSuccessPage />}
+              />
               <Route path="/setup-password" element={<SetupPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

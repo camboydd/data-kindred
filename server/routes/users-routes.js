@@ -11,6 +11,7 @@ import {
   checkAuth,
   updateUser,
   upgradePlan,
+  resendSetupToken,
 } from "../controllers/users-controller.js";
 
 // import { getUsers, getCustomersByUserEmail } from "../controllers/users-controller.js";
@@ -24,10 +25,11 @@ userRouter.get("/check-auth", checkAuth, (req, res) => {
 // Public routes
 userRouter.post("/login", login);
 userRouter.post("/upgrade", checkAuth, upgradePlan);
-userRouter.get("/create-checkout-session", createCheckoutSession);
+userRouter.post("/create-checkout-session", createCheckoutSession);
 userRouter.post("/signup", signup);
 userRouter.post("/logout", checkAuth, logout);
 userRouter.post("/setup-password", setupPassword);
+userRouter.post("/resend-setup", resendSetupToken);
 userRouter.post("/reset-password", resetPassword); // no token in the path
 userRouter.post("/request-password-reset", requestPasswordReset);
 userRouter.post("/request-access", requestAccess);
