@@ -25,6 +25,7 @@ stripeRouter.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
+    // ✅ Handle checkout completion
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const metadata = session.metadata || {};
@@ -35,14 +36,24 @@ stripeRouter.post(
       const { email, name, company, plan, stripeCustomerId } = metadata;
       const subscriptionId = session.subscription;
 
-      if (
-        !email ||
-        !name ||
-        !company ||
-        !plan ||
-        !stripeCustomerId ||
-        !subscriptionId
-      ) {
+      // 🔁 Normalize plan casing
+      let normalizedPlan = null;
+      switch (plan?.toLowerCase()) {
+        case "basic":
+          normalizedPlan = "Basic";
+          break;
+        case "pro":
+          normalizedPlan = "Pro";
+          break;
+        case "enterprise":
+          normalizedPlan = "Enterprise";
+          break;
+        default:
+          console.warn("⚠️ Invalid plan received:", plan);
+          return res.status(400).send("Invalid plan");
+      }
+
+      if (!email || !name || !company || !stripeCustomerId || !subscriptionId) {
         console.warn("⚠️ Missing one or more required metadata fields.");
         return res.status(400).send("Missing metadata");
       }
@@ -81,7 +92,6 @@ stripeRouter.post(
           const setupToken = crypto.randomBytes(32).toString("hex");
           const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
 
-          // Insert setup token
           await executeQuery(
             conn,
             `
@@ -107,8 +117,8 @@ stripeRouter.post(
           INSERT INTO KINDRED.PUBLIC.ACCOUNTS 
           (ID, NAME, PLAN, STRIPE_CUSTOMER_ID, STRIPE_SUBSCRIPTION_ID)
           VALUES (?, ?, ?, ?, ?)
-        `,
-          [accountId, company, plan, stripeCustomerId, subscriptionId]
+          `,
+          [accountId, company, normalizedPlan, stripeCustomerId, subscriptionId]
         );
 
         // 👤 Create user tied to the account
@@ -122,7 +132,7 @@ stripeRouter.post(
           INSERT INTO KINDRED.PUBLIC.USERS 
           (ID, ACCOUNT_ID, EMAIL, NAME)
           VALUES (?, ?, ?, ?)
-        `,
+          `,
           [userId, accountId, email, name]
         );
 
@@ -133,12 +143,11 @@ stripeRouter.post(
           INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
           (EMAIL, TOKEN, EXPIRES_AT, USED)
           VALUES (?, ?, ?, FALSE)
-        `,
+          `,
           [email, setupToken, expiresAt.toISOString()]
         );
 
         console.log(`🔐 Setup token stored. Sending email to ${email}...`);
-
         await sendSetupPasswordEmail(email, setupToken);
 
         console.log(`✅ Account and user created. Email sent to ${email}`);
@@ -149,6 +158,7 @@ stripeRouter.post(
       }
     }
 
+    // ✅ Plan update
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object;
       const stripeCustomerId = subscription.customer;
@@ -159,6 +169,10 @@ stripeRouter.post(
       if (priceId === process.env.BASIC_PRICE_ID) plan = "Basic";
       else if (priceId === process.env.PRO_PRICE_ID) plan = "Pro";
       else if (priceId === process.env.ENTERPRISE_PRICE_ID) plan = "Enterprise";
+      else {
+        console.warn("⚠️ Unknown priceId:", priceId);
+        return res.status(200).send("Unknown plan ID");
+      }
 
       if (!stripeCustomerId || !plan) {
         console.warn("⚠️ Missing stripeCustomerId or unmatched plan ID");
@@ -171,10 +185,10 @@ stripeRouter.post(
         await executeQuery(
           conn,
           `
-      UPDATE KINDRED.PUBLIC.ACCOUNTS
-      SET PLAN = ?, PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = ?
-      WHERE STRIPE_CUSTOMER_ID = ?
-    `,
+          UPDATE KINDRED.PUBLIC.ACCOUNTS
+          SET PLAN = ?, PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = ?
+          WHERE STRIPE_CUSTOMER_ID = ?
+          `,
           [plan, subscription.id, stripeCustomerId]
         );
 
@@ -206,10 +220,10 @@ stripeRouter.post(
         await executeQuery(
           conn,
           `
-      UPDATE KINDRED.PUBLIC.ACCOUNTS
-      SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
-      WHERE STRIPE_CUSTOMER_ID = ?
-    `,
+          UPDATE KINDRED.PUBLIC.ACCOUNTS
+          SET PLAN = 'Canceled', PLAN_SOURCE = 'stripe', STRIPE_SUBSCRIPTION_ID = NULL
+          WHERE STRIPE_CUSTOMER_ID = ?
+          `,
           [stripeCustomerId]
         );
 
