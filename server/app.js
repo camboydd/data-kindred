@@ -101,6 +101,7 @@ const pathsWithoutAuth = [
   "/api/users/check-auth",
   "/api/users/signup",
   "/api/users/create-checkout-session",
+  "/api/stripe/webhook",
 ];
 
 const jwtMiddleware = jwt({
