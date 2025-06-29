@@ -5,6 +5,7 @@ import ReCAPTCHA from "react-google-recaptcha";
 import kindredLogo from "../assets/images/kindred.png";
 import "./LoginPage.css";
 import { useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
@@ -112,9 +113,9 @@ const LoginPage = () => {
             {loading ? <span className="login-spinner" /> : "Sign In"}
           </button>
 
-          {/*<p className="signup-link">
-            Don’t have an account? <a href="/signup">Sign up now</a>
-          </p>*/}
+          <p className="signup-link">
+            Don’t have an account? <Link to="/signup">Sign up now</Link>
+          </p>
         </form>
       </div>
     </div>

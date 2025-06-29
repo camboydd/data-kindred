@@ -239,3 +239,5 @@
 {"level":"INFO","message":"[8:32:21.950 PM]: Configuring logger with level: -1, filePath: undefined, additionalLogToConsole: undefined"}
 {"level":"INFO","message":"[9:12:19.285 PM]: Configuring logger with level: -1, filePath: undefined, additionalLogToConsole: undefined"}
 {"level":"INFO","message":"[9:15:52.792 PM]: Configuring logger with level: -1, filePath: undefined, additionalLogToConsole: undefined"}
+{"level":"INFO","message":"[9:05:25.639 AM]: Configuring logger with level: -1, filePath: undefined, additionalLogToConsole: undefined"}
+{"level":"INFO","message":"[9:16:46.619 AM]: Configuring logger with level: -1, filePath: undefined, additionalLogToConsole: undefined"}
