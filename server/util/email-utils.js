@@ -1,4 +1,4 @@
-import { sendEmail } from "./send-email";
+import { sendEmail } from "./send-email.js";
 
 export const sendSetupPasswordEmail = async (email, token) => {
   const setupLink = `${process.env.FRONTEND_URL}/setup-password?token=${token}`;
