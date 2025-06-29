@@ -37,7 +37,7 @@ snowflake.configure({
   },
 });
 
-app.use("/api/stripe/webhook", stripeRouter);
+app.use("/api/stripe", stripeRouter);
 
 // === Middlewares ===
 app.use(express.json());
@@ -104,6 +104,7 @@ const pathsWithoutAuth = [
   "/api/users/signup",
   "/api/users/create-checkout-session",
   "/api/stripe/webhook",
+  "/checkout-success",
 ];
 
 const jwtMiddleware = jwt({
