@@ -58,9 +58,44 @@ stripeRouter.post(
         );
 
         if (existingUser.length > 0) {
-          console.log(
-            `👤 User already exists for ${email}, skipping creation.`
+          console.log(`👤 User already exists for ${email}.`);
+
+          // Check for existing setup token
+          const existingToken = await executeQuery(
+            conn,
+            `
+            SELECT TOKEN FROM KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS
+            WHERE EMAIL = ? AND USED = FALSE AND EXPIRES_AT > CURRENT_TIMESTAMP()
+            `,
+            [email]
           );
+
+          if (existingToken.length > 0) {
+            console.log(
+              `🔁 Token already exists for ${email}, skipping resend.`
+            );
+            return res.status(200).send("ok");
+          }
+
+          console.log("🆕 No setup token found. Creating one now...");
+          const setupToken = crypto.randomBytes(32).toString("hex");
+          const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+
+          // Insert setup token
+          await executeQuery(
+            conn,
+            `
+            INSERT INTO KINDRED.PUBLIC.SETUP_PASSWORD_TOKENS 
+            (EMAIL, TOKEN, EXPIRES_AT, USED)
+            VALUES (?, ?, ?, FALSE)
+            `,
+            [email, setupToken, expiresAt.toISOString()]
+          );
+
+          console.log(`📧 Sending setup email to ${email}...`);
+          await sendSetupPasswordEmail(email, setupToken);
+
+          console.log(`✅ Token created and email sent to ${email}`);
           return res.status(200).send("ok");
         }
 
