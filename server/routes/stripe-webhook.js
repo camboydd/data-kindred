@@ -25,21 +25,26 @@ stripeRouter.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // ✅ Account creation from successful checkout
+    // ✅ Handle checkout completion
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const { email, name, company, plan, stripeCustomerId } =
-        session.metadata || {};
+      const metadata = session.metadata || {};
+
+      console.log("📦 Received checkout.session.completed");
+      console.log("📦 Metadata:", metadata);
+
+      const { email, name, company, plan, stripeCustomerId } = metadata;
       const subscriptionId = session.subscription;
 
       if (!email || !name || !plan || !stripeCustomerId || !subscriptionId) {
-        console.warn("⚠️ Missing metadata in checkout.session.completed");
+        console.warn("⚠️ Missing one or more required metadata fields.");
         return res.status(400).send("Missing metadata");
       }
 
       try {
         const conn = await connectToSnowflake();
 
+        // Check for existing user
         const existing = await executeQuery(
           conn,
           `SELECT ID FROM KINDRED.PUBLIC.USERS WHERE EMAIL = ?`,
@@ -47,16 +52,20 @@ stripeRouter.post(
         );
 
         if (existing.length > 0) {
-          console.log(`👤 User already exists for ${email}`);
+          console.log(
+            `👤 User already exists for ${email}, skipping creation.`
+          );
           return res.status(200).send("ok");
         }
 
-        // Generate user ID and setup token
+        // Create user ID + password setup token
         const userId = crypto.randomUUID();
         const setupToken = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
 
-        // Create new user
+        console.log("🆕 Creating user and storing password setup token...");
+
+        // Create user in USERS table
         await executeQuery(
           conn,
           `
@@ -67,7 +76,7 @@ stripeRouter.post(
           [userId, email, name, company, stripeCustomerId, subscriptionId, plan]
         );
 
-        // Store password setup token
+        // Insert setup token
         await executeQuery(
           conn,
           `
@@ -77,18 +86,20 @@ stripeRouter.post(
           [email, setupToken, expiresAt.toISOString()]
         );
 
-        // Send branded password setup email
+        console.log(`🔐 Setup token stored. Sending email to ${email}...`);
+
+        // Send email
         await sendSetupPasswordEmail(email, setupToken);
 
-        console.log(`✅ Created user and sent setup email to ${email}`);
+        console.log(`✅ User created and email sent to ${email}`);
+        return res.status(200).send("ok");
       } catch (err) {
-        console.error("❌ Error creating user from webhook:", err);
+        console.error("❌ Failed during user creation or email step:", err);
+        return res.status(500).send("User creation failed.");
       }
-
-      return res.status(200).send("ok");
     }
 
-    // ✅ Subscription plan update
+    // ✅ Plan update
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object;
       const accountId =
@@ -120,13 +131,13 @@ stripeRouter.post(
 
         console.log(`🔄 Updated account ${accountId} to plan "${plan}"`);
       } catch (err) {
-        console.error("❌ Failed to update Snowflake account:", err.message);
+        console.error("❌ Failed to update account plan:", err);
       }
 
       return res.status(200).send("ok");
     }
 
-    // ✅ Subscription cancellation
+    // ✅ Subscription canceled
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object;
       const accountId =
@@ -148,14 +159,14 @@ stripeRouter.post(
 
         console.log(`⚠️ Marked account ${accountId} as 'Canceled'`);
       } catch (err) {
-        console.error("❌ Failed to mark account as canceled:", err.message);
+        console.error("❌ Failed to mark account canceled:", err.message);
       }
 
       return res.status(200).send("ok");
     }
 
-    // ✅ Unhandled event types
-    res.status(200).send("ok");
+    // 🟡 Other event types
+    return res.status(200).send("ok");
   }
 );
 

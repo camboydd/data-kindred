@@ -9,7 +9,7 @@ import { authFetch } from "../util/authFetch";
 const plans = [
   {
     name: "Basic",
-    price: "$99/mo",
+    price: "$149/mo",
     planParam: "basic",
     description: "Perfect for small teams integrating a couple platforms.",
     features: ["Up to 2 connectors", "Daily syncs", "Email support"],

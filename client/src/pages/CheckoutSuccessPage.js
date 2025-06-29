@@ -8,13 +8,13 @@ import "./CheckoutSuccessPage.css"; // Optional: extract styles
 const CheckoutSuccessPage = () => {
   const navigate = useNavigate();
 
-  /*useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
-      navigate("/dashboard");
+      navigate("/");
     }, 4000);
 
     return () => clearTimeout(timer);
-  }, [navigate]);*/
+  }, [navigate]);
 
   return (
     <div className="checkout-success-container">
@@ -23,8 +23,7 @@ const CheckoutSuccessPage = () => {
         <CheckCircle size={64} color="#10b981" strokeWidth={1.5} />
         <h1 className="success-title">Payment Successful</h1>
         <p className="success-text">
-          Your Kindred account is now active. Redirecting you to your
-          dashboard...
+          Your Kindred account is now active. Redirecting you to login...
         </p>
       </div>
     </div>
