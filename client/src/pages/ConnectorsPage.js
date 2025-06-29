@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { PLAN_RULES } from "../util/plan-config";
 import UpgradeModal from "../components/UpgradeModal";
+import { authFetch } from "../util/authFetch";
 
 import sageIntacctLogo from "../assets/logos/sage-intacct.png";
 import energycapLogo from "../assets/logos/ecap.png";
@@ -80,7 +81,7 @@ const ConnectorsPage = () => {
       }
 
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `/api/connectors/statuses?accountId=${user.accountId}`,
           {
             method: "GET",
@@ -188,6 +189,7 @@ const ConnectorsPage = () => {
               <button
                 className="setup-button"
                 onClick={() => handleSetup(connector.id, connector.name)}
+                disabled={loading}
               >
                 {statusMap[connector.id] === "connected" ? "View" : "Set Up"}
               </button>

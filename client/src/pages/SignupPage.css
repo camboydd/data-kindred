@@ -65,7 +65,7 @@
   position: absolute;
   top: 50%;
   right: 0.75rem;
-  transform: translateY(-50%);
+  transform: translateY(-30%);
   background: none;
   border: none;
   color: #4f46e5;
@@ -210,23 +210,4 @@
     grid-template-rows: auto auto auto;
   }
 }
-.signupPage-left button {
-  background-color: #4f46e5;
-  color: #fff;
-  font-weight: 600;
-  font-size: 1rem;
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: background-color 0.25s ease;
-}
 
-.signupPage-left button:hover {
-  background-color: #4338ca;
-}
-
-.signupPage-left button:disabled {
-  background-color: #a5b4fc;
-  cursor: not-allowed;
-}

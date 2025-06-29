@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Trash2, Loader2 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../util/authFetch";
 import "./SetupConnectorPage.css";
 
 const CONNECTOR_CONFIGS = {
@@ -66,7 +67,7 @@ const SetupConnectorPage = () => {
       if (authLoading || !user) return;
 
       try {
-        const res = await fetch(`/api/connectors/${id}/config`, {
+        const res = await authFetch(`/api/connectors/${id}/config`, {
           method: "POST",
           credentials: "include",
           headers: {
@@ -112,7 +113,7 @@ const SetupConnectorPage = () => {
 
       try {
         setStatusLoading(true);
-        const res = await fetch(`/api/connectors/${id}/status`, {
+        const res = await authFetch(`/api/connectors/${id}/status`, {
           method: "POST",
           credentials: "include",
           headers: {
@@ -140,7 +141,7 @@ const SetupConnectorPage = () => {
 
   const handleRemoveConfig = async () => {
     try {
-      const res = await fetch(`/api/connectors/${id}/delete`, {
+      const res = await authFetch(`/api/connectors/${id}/delete`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -176,7 +177,7 @@ const SetupConnectorPage = () => {
     };
 
     try {
-      const testRes = await fetch(`/api/connectors/${id}/test`, {
+      const testRes = await authFetch(`/api/connectors/${id}/test`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -191,7 +192,7 @@ const SetupConnectorPage = () => {
         throw new Error("Connection test failed.");
       }
 
-      const saveRes = await fetch("/api/connectors/setup", {
+      const saveRes = await authFetch("/api/connectors/setup", {
         method: "POST",
         credentials: "include",
         headers: {

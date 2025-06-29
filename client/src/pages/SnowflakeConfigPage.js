@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import OAuthSetupModal from "../components/OAuthSetupModal";
 import { useAuth } from "../context/AuthContext";
 import "./SnowflakeConfigPage.css";
+import { authFetch } from "../util/authFetch";
 
 const SnowflakeConfigPage = () => {
   const { user, authLoading } = useAuth();
@@ -39,7 +40,7 @@ const SnowflakeConfigPage = () => {
   useEffect(() => {
     if (!user || authLoading) return;
     const fetchAuthMethod = async () => {
-      const res = await fetch("/api/snowflake/configs/auth-method", {
+      const res = await authFetch("/api/snowflake/configs/auth-method", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -61,7 +62,7 @@ const SnowflakeConfigPage = () => {
     const checkStatus = async () => {
       setStatusLoading(true);
       try {
-        const res = await fetch("/api/snowflake/configs/status", {
+        const res = await authFetch("/api/snowflake/configs/status", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -129,7 +130,7 @@ const SnowflakeConfigPage = () => {
           authMethod === "oauth" ? oauthRefreshToken : undefined,
       };
 
-      const res = await fetch("/api/snowflake/configs", {
+      const res = await authFetch("/api/snowflake/configs", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -224,7 +225,7 @@ const SnowflakeConfigPage = () => {
         schema: "PUBLIC",
       };
 
-      const res = await fetch("/api/snowflake/configs/test", {
+      const res = await authFetch("/api/snowflake/configs/test", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -259,7 +260,7 @@ const SnowflakeConfigPage = () => {
   const handleRemoveConfig = async () => {
     setDeleteLoading(true);
     try {
-      const res = await fetch("/api/snowflake/configs/delete", {
+      const res = await authFetch("/api/snowflake/configs/delete", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

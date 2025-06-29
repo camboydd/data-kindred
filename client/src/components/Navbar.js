@@ -12,6 +12,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import "./Navbar.css";
 import kindredLogo from "../assets/images/kindred_purple.png";
+import { authFetch } from "../util/authFetch";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -20,9 +21,11 @@ const Navbar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef();
 
+  console.log("Navbar user:", user);
+
   const handleLogout = async () => {
     try {
-      await fetch("/api/users/logout", {
+      await authFetch("/api/users/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -128,12 +131,24 @@ const Navbar = () => {
 
       {/* User Dropdown */}
       <div className="user-dropdown-container" ref={dropdownRef}>
-        <button
-          className="user-icon-btn"
-          onClick={() => setShowDropdown((prev) => !prev)}
-        >
-          <UserCircle size={28} />
-        </button>
+        <div className="user-profile">
+          <button
+            className="user-icon-btn"
+            onClick={() => setShowDropdown((prev) => !prev)}
+          >
+            <UserCircle size={28} />
+          </button>
+
+          {(user?.accountName || user?.name) && (
+            <div className="user-labels">
+              {user.accountName && (
+                <div className="account-name">{user.accountName}</div>
+              )}
+              {user.name && <div className="user-full-name">{user.name}</div>}
+            </div>
+          )}
+        </div>
+
         {showDropdown && (
           <div className="user-dropdown-menu">
             <button onClick={handleUserSettings}>User Settings</button>

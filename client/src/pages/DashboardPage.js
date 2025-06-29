@@ -10,6 +10,7 @@ import { Activity, TrendingUp, Wrench, HelpCircle } from "lucide-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { useAuth } from "../context/AuthContext";
 import "./DashboardPage.css";
+import { authFetch } from "../util/authFetch";
 
 const DashboardPage = () => {
   const alertRef = useRef(null);
@@ -21,8 +22,9 @@ const DashboardPage = () => {
   const [hasConnectorConfig, setHasConnectorConfig] = useState(false);
   const [setupComplete, setSetupComplete] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
   const { user, authLoading } = useAuth();
+  const firstName =
+    user?.name?.split(" ")[0] || user?.email?.split("@")[0] || "there";
 
   useEffect(() => {
     document.body.classList.toggle("dark-mode", darkMode);
@@ -44,11 +46,11 @@ const DashboardPage = () => {
 
         const [kpiRes, perfRes, recentRes, snowflakeRes, connectorRes] =
           await Promise.all([
-            fetch("/api/etl/kpis", { credentials: "include" }),
-            fetch("/api/etl/daily-volume", { credentials: "include" }),
-            fetch("/api/etl/recent-activity", { credentials: "include" }),
-            fetch("/api/snowflake/configs", { credentials: "include" }),
-            fetch(`/api/connectors/configs?accountId=${accountId}`, {
+            authFetch("/api/etl/kpis", { credentials: "include" }),
+            authFetch("/api/etl/daily-volume", { credentials: "include" }),
+            authFetch("/api/etl/recent-activity", { credentials: "include" }),
+            authFetch("/api/snowflake/configs", { credentials: "include" }),
+            authFetch(`/api/connectors/configs?accountId=${accountId}`, {
               credentials: "include",
             }),
           ]);
@@ -146,7 +148,8 @@ const DashboardPage = () => {
         <div className="dashboard-content-area">
           <div className="dashboard-welcome-intro">
             <div className="dashboard-welcome-left">
-              <h2>Welcome!</h2>
+              <h2>Welcome, {firstName}!</h2>
+
               <p>
                 Kindred connects your operational platforms directly to your{" "}
                 <strong>Snowflake warehouse</strong>. It simplifies data

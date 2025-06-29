@@ -4,6 +4,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import UpgradeModal from "../components/UpgradeModal";
 import { PLAN_RULES } from "../util/plan-config";
+import { authFetch } from "../util/authFetch";
 
 import "./SyncManagementPage.css";
 
@@ -30,6 +31,8 @@ const ConnectorDetails = ({
     error: null,
   });
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [confirmingSync, setConfirmingSync] = useState(false);
+  const [showSyncWarning, setShowSyncWarning] = useState(false);
 
   const syncKey = `syncing_${connector?.connectorId}`;
 
@@ -79,24 +82,13 @@ const ConnectorDetails = ({
     return () => clearInterval(interval);
   }, [isLoading, connector?.connectorId]);
 
-  const handleManualSync = async () => {
-    const isBasic = user?.plan === "Basic";
-    const limit =
-      PLAN_RULES[user?.plan]?.manualSyncLimitPerConnectorPerDay ?? 0;
-    const today = new Date().toISOString().split("T")[0];
-
-    const todaysLogs = logs.filter((log) => log.startedAt?.startsWith(today));
-
-    if (isBasic && todaysLogs.length >= limit) {
-      setShowUpgradeModal(true);
-      return;
-    }
+  const triggerSync = async () => {
     setIsLoading(true);
     localStorage.setItem(syncKey, "true");
     const toastId = toast.loading("Syncing...");
 
     try {
-      const res = await fetch(`/api/connectors/sync/manual`, {
+      const res = await authFetch(`/api/connectors/sync/manual`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -128,7 +120,23 @@ const ConnectorDetails = ({
     } finally {
       setIsLoading(false);
       localStorage.removeItem(syncKey);
+      setShowSyncWarning(false);
     }
+  };
+
+  const handleManualSync = () => {
+    const isBasic = user?.plan === "Basic";
+    const limit =
+      PLAN_RULES[user?.plan]?.manualSyncLimitPerConnectorPerDay ?? 0;
+    const today = new Date().toISOString().split("T")[0];
+    const todaysLogs = logs.filter((log) => log.startedAt?.startsWith(today));
+
+    if (isBasic && todaysLogs.length >= limit) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    setShowSyncWarning(true);
   };
 
   const formatDate = (iso) =>
@@ -293,6 +301,53 @@ const ConnectorDetails = ({
           </div>
         )}
       </div>
+      {showSyncWarning && (
+        <div className="sync-modal-backdrop">
+          <div className="sync-modal">
+            <h3>Confirm Manual Sync</h3>
+
+            <label htmlFor="refresh-window-select" className="sync-label">
+              Refresh Range
+            </label>
+            <select
+              id="refresh-window-select"
+              value={selectedRange}
+              onChange={(e) => setSelectedRange(e.target.value)}
+              className="sync-select"
+            >
+              {REFRESH_OPTIONS.map(
+                (opt) =>
+                  (!opt.adminOnly || user?.role === "admin") && (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  )
+              )}
+            </select>
+
+            <p className="sync-warning-text">
+              Running a manual sync will trigger{" "}
+              <strong>Snowflake compute</strong>, which may result in{" "}
+              <strong>usage-based charges</strong> depending on your warehouse
+              size and sync duration.
+            </p>
+            <p>Proceed only if you're aware of the cost implications.</p>
+
+            <div className="sync-modal-buttons">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowSyncWarning(false)}
+              >
+                Cancel
+              </button>
+              <button className="confirm-btn" onClick={triggerSync}>
+                Run {selectedRange} Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUpgradeModal && (
         <UpgradeModal
           planName={user?.plan}

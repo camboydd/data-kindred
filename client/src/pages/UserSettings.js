@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import { UserCircle } from "lucide-react";
+import { authFetch } from "../util/authFetch";
 import "./UserSettings.css";
 
 const UserSettings = () => {
@@ -55,7 +56,7 @@ const UserSettings = () => {
     }
 
     try {
-      const res = await fetch("/api/users/update", {
+      const res = await authFetch("/api/users/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

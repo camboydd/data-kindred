@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import kindredLogo from "../assets/images/kindred_purple.png";
 import "./SignupPage.css";
+import "./UpgradePage.css";
 import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../util/authFetch";
 
 const plans = [
   {
@@ -75,7 +77,7 @@ const UpgradePage = () => {
     setError(null);
 
     try {
-      const res = await fetch("/api/users/upgrade", {
+      const res = await authFetch("/api/users/upgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -106,7 +108,12 @@ const UpgradePage = () => {
         {submitting && (
           <p className="signupPage-success">Redirecting to checkout...</p>
         )}
-        <button onClick={handleUpgrade} disabled={submitting} type="button">
+        <button
+          className="upgrade-button"
+          onClick={handleUpgrade}
+          disabled={submitting}
+          type="button"
+        >
           {submitting ? "Processing..." : `Upgrade to ${plan}`}
         </button>
       </div>

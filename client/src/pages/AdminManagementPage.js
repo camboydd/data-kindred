@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import "./AdminManagementPage.css";
+import { authFetch } from "../util/authFetch";
 
 const AdminManagementPage = () => {
   const [accounts, setAccounts] = useState([]);
@@ -21,7 +22,7 @@ const AdminManagementPage = () => {
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/accounts", {
+      const res = await authFetch("/api/admin/accounts", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -38,7 +39,7 @@ const AdminManagementPage = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/users", {
+      const res = await authFetch("/api/admin/users", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -55,7 +56,7 @@ const AdminManagementPage = () => {
   const handleAddAccount = async () => {
     if (!newAccountName) return;
     const token = localStorage.getItem("token");
-    const res = await fetch("/api/admin/accounts", {
+    const res = await authFetch("/api/admin/accounts", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -72,7 +73,7 @@ const AdminManagementPage = () => {
   const handleAddUser = async () => {
     if (!selectedAccount || !newUser.email) return;
     const token = localStorage.getItem("token");
-    const res = await fetch("/api/admin/users", {
+    const res = await authFetch("/api/admin/users", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -91,7 +92,7 @@ const AdminManagementPage = () => {
 
   const handleRunEtl = async () => {
     try {
-      const res = await fetch(`/api/run/all`, {
+      const res = await authFetch(`/api/run/all`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -112,7 +113,7 @@ const AdminManagementPage = () => {
   };
   const handleRefreshForAccount = async (accountId) => {
     try {
-      const res = await fetch(`/api/run/refresh/${accountId}`, {
+      const res = await authFetch(`/api/run/refresh/${accountId}`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -141,7 +142,7 @@ const AdminManagementPage = () => {
       return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/admin/accounts/${accountId}`, {
+      const res = await authFetch(`/api/admin/accounts/${accountId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -164,7 +165,7 @@ const AdminManagementPage = () => {
     if (!window.confirm("Delete this user?")) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await authFetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

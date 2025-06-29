@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import { Plug } from "lucide-react";
 import "./AuditLogsPage.css";
+import { authFetch } from "../util/authFetch";
 
 const AuditLogsPage = () => {
   const [rawLogs, setRawLogs] = useState([]);
@@ -19,7 +20,7 @@ const AuditLogsPage = () => {
     const fetchAuditLogsForUser = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/audit", {
+        const res = await authFetch("/api/audit", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,

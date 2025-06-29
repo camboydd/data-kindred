@@ -274,20 +274,22 @@ const login = async (req, res, next) => {
       });
     }
 
-    // 🔍 Fetch plan from Snowflake
+    // 🔍 Fetch plan and account name from Snowflake
     let plan = undefined;
+    let accountName = undefined;
     try {
       const conn = await connectToSnowflake();
       const result = await executeQuery(
         conn,
-        `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+        `SELECT PLAN, NAME FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
         [user.account_id]
       );
       plan = result?.[0]?.PLAN;
+      accountName = result?.[0]?.NAME;
       console.log("[LOGIN] Retrieved plan:", plan);
+      console.log("[LOGIN] Retrieved account name:", accountName);
     } catch (err) {
-      console.error("[LOGIN] Failed to fetch plan:", err);
-      // continue anyway with no plan
+      console.error("[LOGIN] Failed to fetch plan/account name:", err);
     }
 
     console.log("[LOGIN] Password validated. Signing JWT...");
@@ -297,7 +299,9 @@ const login = async (req, res, next) => {
         email: user.email,
         accountId: user.account_id,
         role: user.role,
-        ...(plan && { plan }), // only include if defined
+        name: user.name,
+        ...(plan && { plan }),
+        ...(accountName && { accountName }),
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -331,7 +335,9 @@ const login = async (req, res, next) => {
         email: user.email,
         role: user.role,
         accountId: user.account_id,
-        ...(plan && { plan }), // ⬅️ include plan in response
+        name: user.name,
+        ...(plan && { plan }),
+        ...(accountName && { accountName }),
       },
     });
   } catch (err) {
@@ -339,6 +345,7 @@ const login = async (req, res, next) => {
     return next(new HttpError("Unexpected login error.", 500));
   }
 };
+
 const logout = async (req, res, next) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
@@ -361,7 +368,6 @@ const logout = async (req, res, next) => {
 
   res.status(200).json({ message: "Logged out successfully" });
 };
-
 const checkAuth = async (req, res, next) => {
   const token = req.cookies?.token;
   if (!token) {
@@ -384,24 +390,33 @@ const checkAuth = async (req, res, next) => {
       accountId: decoded.accountId,
     };
 
-    // 🔍 Fetch plan from Snowflake
     try {
       const conn = await connectToSnowflake();
-      const result = await executeQuery(
+
+      // 1. Get PLAN and NAME from ACCOUNTS
+      const accountResult = await executeQuery(
         conn,
-        `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+        `SELECT PLAN, NAME FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
         [user.accountId]
       );
 
-      const plan = result?.[0]?.PLAN;
-      if (plan) {
-        user.plan = plan;
-      } else {
-        console.warn("⚠️ No plan found for account:", user.accountId);
-      }
-    } catch (planErr) {
-      console.error("❌ Failed to fetch plan during auth:", planErr);
-      // still allow auth, but without plan
+      const plan = accountResult?.[0]?.PLAN;
+      const accountName = accountResult?.[0]?.NAME;
+
+      if (plan) user.plan = plan;
+      if (accountName) user.accountName = accountName;
+
+      // 2. Get NAME from USERS (user's full name)
+      const userResult = await executeQuery(
+        conn,
+        `SELECT NAME FROM KINDRED.PUBLIC.USERS WHERE ID = ?`,
+        [decoded.userId]
+      );
+
+      const name = userResult?.[0]?.NAME;
+      if (name) user.name = name;
+    } catch (fetchErr) {
+      console.error("❌ Failed to fetch plan/account/user name:", fetchErr);
     }
 
     req.user = user;

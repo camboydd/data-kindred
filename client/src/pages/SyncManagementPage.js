@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ConnectorListPanel from "../components/ConnectorListPanel";
 import ConnectorDetails from "../components/ConnectorDetails";
 import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../util/authFetch";
 import "./SyncManagementPage.css";
 
 const SyncManagementPage = () => {
@@ -14,7 +15,7 @@ const SyncManagementPage = () => {
   const fetchLogsForConnector = async (connectorId) => {
     setLogsLoadingMap((prev) => ({ ...prev, [connectorId]: true }));
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/connectors/sync/manual/logs?connectorId=${connectorId}&accountId=${user?.accountId}`,
         { credentials: "include" }
       );
@@ -38,7 +39,7 @@ const SyncManagementPage = () => {
     const fetchConnectors = async () => {
       if (!user?.accountId) return;
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `/api/connectors/configs?accountId=${user.accountId}`,
           { credentials: "include" }
         );

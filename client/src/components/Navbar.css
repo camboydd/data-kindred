@@ -151,6 +151,14 @@
   margin-top: 16px;
 }
 
+.user-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
+  margin-bottom: 10px;
+}
+
 .user-icon-btn {
   background: none;
   border: none;
@@ -192,4 +200,22 @@
 
 .user-dropdown-menu button:hover {
   background-color: #f9fafb;
+}
+.user-labels {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.2;
+}
+
+.account-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.user-full-name {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: #475569;
 }
