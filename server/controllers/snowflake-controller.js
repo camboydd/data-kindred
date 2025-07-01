@@ -459,22 +459,6 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
       response_mode: "query",
       state: accountId,
     });
-
-    await logAuditEvent({
-      accountId,
-      initiatorEmail: req.user?.email || "anonymous",
-      initiatorAccountId: req.user?.accountId || "unknown",
-      actor: req.user?.email || "anonymous",
-      action: "start_oauth_flow",
-      target: accountId,
-      status: "success",
-      metadata: {
-        client_id,
-        redirect_uri,
-        ip,
-      },
-    });
-
     return res.redirect(`${auth_url}?${params}`);
   } catch (err) {
     console.error("❌ OAuth authorization error:", err);
@@ -518,20 +502,6 @@ const handleOAuthCallback = async (req, res, next) => {
       access_token,
       refresh_token,
       expires_in,
-    });
-
-    await logAuditEvent({
-      accountId,
-      initiatorEmail: req.user?.email || "anonymous",
-      initiatorAccountId: req.user?.accountId || "unknown",
-      actor: req.user?.email || "anonymous",
-      action: "handle_oauth_callback",
-      target: accountId,
-      status: "success",
-      metadata: {
-        expires_in,
-        ip,
-      },
     });
 
     return res.json({
@@ -610,21 +580,6 @@ const saveOAuthConfig = async (req, res, next) => {
         scope || "offline_access openid",
       ]
     );
-
-    await logAuditEvent({
-      accountId,
-      initiatorEmail: req.user?.email || "anonymous",
-      initiatorAccountId: req.user?.accountId || "unknown",
-      actor: req.user?.email || "anonymous",
-      action: "save_oauth_config",
-      target: accountId,
-      status: "success",
-      metadata: {
-        clientId,
-        redirectUri,
-        ip,
-      },
-    });
 
     return res.json({ success: true });
   } catch (err) {
