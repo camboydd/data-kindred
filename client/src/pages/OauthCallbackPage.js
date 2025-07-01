@@ -33,7 +33,7 @@ const OAuthCallbackPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code, accountId }),
+          body: JSON.stringify({ code, accountId }), // ← accountId from state param
         });
 
         const data = await res.json();

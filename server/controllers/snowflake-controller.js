@@ -461,10 +461,10 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
     });
 
     await logAuditEvent({
-      accountId: accountId, // from query/body
-      initiatorEmail: req.user?.email,
-      initiatorAccountId: req.user?.accountId,
-      actor: req.user?.email || "unknown",
+      accountId,
+      initiatorEmail: req.user?.email || "anonymous",
+      initiatorAccountId: req.user?.accountId || "unknown",
+      actor: req.user?.email || "anonymous",
       action: "start_oauth_flow",
       target: accountId,
       status: "success",
@@ -521,10 +521,10 @@ const handleOAuthCallback = async (req, res, next) => {
     });
 
     await logAuditEvent({
-      accountId: accountId, // from query/body
-      initiatorEmail: req.user?.email,
-      initiatorAccountId: req.user?.accountId,
-      actor: req.user?.email || "unknown",
+      accountId,
+      initiatorEmail: req.user?.email || "anonymous",
+      initiatorAccountId: req.user?.accountId || "unknown",
+      actor: req.user?.email || "anonymous",
       action: "handle_oauth_callback",
       target: accountId,
       status: "success",
@@ -612,10 +612,10 @@ const saveOAuthConfig = async (req, res, next) => {
     );
 
     await logAuditEvent({
-      accountId: accountId, // from query/body
-      initiatorEmail: req.user?.email,
-      initiatorAccountId: req.user?.accountId,
-      actor: req.user?.email || "unknown",
+      accountId,
+      initiatorEmail: req.user?.email || "anonymous",
+      initiatorAccountId: req.user?.accountId || "unknown",
+      actor: req.user?.email || "anonymous",
       action: "save_oauth_config",
       target: accountId,
       status: "success",

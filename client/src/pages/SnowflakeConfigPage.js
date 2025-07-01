@@ -547,8 +547,12 @@ const SnowflakeConfigPage = () => {
                         const apiBase =
                           process.env.NODE_ENV === "development"
                             ? "http://localhost:3001"
-                            : "";
-                        const fullRedirect = `${apiBase}/api/snowflake/oauth/authorize?accountId=${accountId}`;
+                            : "https://app.datakindred.com"; // your prod URL
+
+                        const redirectUri = `https://app.datakindred.com/oauth/callback?accountId=${accountId}`;
+                        const fullRedirect = `${apiBase}/api/snowflake/oauth/authorize?accountId=${accountId}&redirect_uri=${encodeURIComponent(
+                          redirectUri
+                        )}`;
                         window.location.href = fullRedirect;
                       }}
                     />

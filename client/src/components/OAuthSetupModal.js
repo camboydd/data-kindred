@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./OAuthSetupModal.css";
+import { useAuth } from "../context/AuthContext";
 
 const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
   const [clientId, setClientId] = useState("");
@@ -9,6 +10,8 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
   const [redirectUri, setRedirectUri] = useState("");
   const [scope, setScope] = useState("offline_access openid");
 
+  const { user } = useAuth();
+
   const handleSubmit = async () => {
     if (!clientId || !clientSecret || !authUrl || !tokenUrl || !redirectUri) {
       alert("❌ All fields except scope are required.");
@@ -16,7 +19,7 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
     }
 
     const token = localStorage.getItem("token");
-    const accountId = localStorage.getItem("accountId");
+    const accountId = user?.accountId;
 
     const payload = {
       accountId,
