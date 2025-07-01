@@ -504,6 +504,24 @@ const handleOAuthCallback = async (req, res, next) => {
       expires_in,
     });
 
+    // ⬇️ Upsert CURRENT_AUTH_METHOD = 'oauth' into SNOWFLAKE_AUTH_METHOD
+    const conn = await connectToSnowflake();
+    await executeQuery(
+      conn,
+      `
+      MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_AUTH_METHOD target
+      USING (SELECT ? AS ACCOUNT_ID) source
+      ON target.ACCOUNT_ID = source.ACCOUNT_ID
+      WHEN MATCHED THEN UPDATE SET 
+        CURRENT_AUTH_METHOD = 'oauth',
+        UPDATED_AT = CURRENT_TIMESTAMP()
+      WHEN NOT MATCHED THEN INSERT (
+        ACCOUNT_ID, CURRENT_AUTH_METHOD, UPDATED_AT
+      ) VALUES (?, 'oauth', CURRENT_TIMESTAMP())
+      `,
+      [accountId, accountId]
+    );
+
     return res.json({
       message: "✅ OAuth connection successful. You can now close this window.",
     });
