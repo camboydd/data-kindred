@@ -21,8 +21,6 @@ const Navbar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef();
 
-  console.log("Navbar user:", user);
-
   const handleLogout = async () => {
     try {
       await authFetch("/api/users/logout", {

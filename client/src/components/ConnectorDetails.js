@@ -127,7 +127,9 @@ const ConnectorDetails = ({
   const handleManualSync = () => {
     const isBasic = user?.plan === "Basic";
     const limit =
-      PLAN_RULES[user?.plan]?.manualSyncLimitPerConnectorPerDay ?? 0;
+      PLAN_RULES[user?.plan?.toLowerCase()]
+        ?.manualSyncLimitPerConnectorPerDay ?? 0;
+
     const today = new Date().toISOString().split("T")[0];
     const todaysLogs = logs.filter((log) => log.startedAt?.startsWith(today));
 

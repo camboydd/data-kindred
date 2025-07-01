@@ -40,10 +40,11 @@ const SnowflakeConfigPage = () => {
   useEffect(() => {
     if (!user || authLoading) return;
     const fetchAuthMethod = async () => {
+      // SnowflakeConfigPage fetch → update to remove Authorization
       const res = await authFetch("/api/snowflake/configs/auth-method", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" }, // REMOVE Authorization header
         body: JSON.stringify({ accountId: user.accountId }),
       });
 

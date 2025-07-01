@@ -1,7 +1,7 @@
 // src/util/plan-config.js
 
 export const PLAN_RULES = {
-  Basic: {
+  basic: {
     maxConnectors: 2,
     canInviteUsers: false,
     showAdvancedSettings: false,
@@ -10,7 +10,7 @@ export const PLAN_RULES = {
     manualSyncLimitPerConnectorPerDay: 0,
   },
 
-  Pro: {
+  pro: {
     maxConnectors: 5,
     canInviteUsers: true,
     showAdvancedSettings: true,
@@ -19,7 +19,7 @@ export const PLAN_RULES = {
     manualSyncLimitPerConnectorPerDay: 1, // ⏱️ 1 manual sync per connector/day
   },
 
-  Enterprise: {
+  enterprise: {
     maxConnectors: 999,
     canInviteUsers: true,
     showAdvancedSettings: true,

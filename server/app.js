@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { expressjwt as jwt } from "express-jwt";
 import snowflake from "snowflake-sdk";
 
+import { accountRouter } from "./routes/account-routes.js";
 import { userRouter } from "./routes/users-routes.js";
 import { adminRouter } from "./routes/admin-routes.js";
 import { snowflakeRouter } from "./routes/snowflake-routes.js";
@@ -107,62 +108,49 @@ const pathsWithoutAuth = [
   "/checkout-success",
 ];
 
+// Step 1: JWT Middleware
 const jwtMiddleware = jwt({
   secret: JWT_SECRET,
   algorithms: ["HS256"],
   getToken: (req) => req.cookies?.token,
 });
 
-// Apply JWT unless public route
-// Apply JWT unless public route
-app.use((req, res, next) => {
+// Step 2: Attach manually (once, globally)
+app.use(async (req, res, next) => {
   const isPublic = pathsWithoutAuth.some((pattern) =>
     pattern instanceof RegExp ? pattern.test(req.path) : pattern === req.path
   );
+
   if (isPublic) return next();
-  return jwtMiddleware(req, res, (err) => {
+
+  jwtMiddleware(req, res, async (err) => {
     if (err) return next(err);
 
-    app.use((req, res, next) => {
-      const isPublic = pathsWithoutAuth.some((pattern) =>
-        pattern instanceof RegExp
-          ? pattern.test(req.path)
-          : pattern === req.path
-      );
-      if (isPublic) return next();
+    // Patch req.user
+    const { userId, email, role, accountId } = req.auth || {};
+    let plan = null;
 
-      return jwtMiddleware(req, res, async (err) => {
-        if (err) return next(err);
+    if (accountId) {
+      try {
+        const conn = await connectToSnowflake();
+        const result = await executeQuery(
+          conn,
+          `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
+          [accountId]
+        );
+        plan = result?.[0]?.PLAN;
+      } catch (err) {
+        console.error("❌ Failed to fetch plan from DB:", err);
+      }
+    }
 
-        // 🔧 Patch req.user from decoded JWT
-        const { userId, email, role, accountId } = req.auth || {};
-        let plan = null;
-
-        if (accountId) {
-          try {
-            const conn = await connectToSnowflake();
-            const result = await executeQuery(
-              conn,
-              `SELECT PLAN FROM KINDRED.PUBLIC.ACCOUNTS WHERE ID = ?`,
-              [accountId]
-            );
-            plan = result?.[0]?.PLAN;
-          } catch (err) {
-            console.error("❌ Failed to fetch plan from DB:", err);
-          }
-        }
-
-        req.user = {
-          id: userId,
-          email,
-          role,
-          accountId,
-          plan, // ✅ now included in request
-        };
-
-        next();
-      });
-    });
+    req.user = {
+      id: userId,
+      email,
+      role,
+      accountId,
+      plan,
+    };
 
     next();
   });
@@ -170,6 +158,7 @@ app.use((req, res, next) => {
 
 // === Mount routes ===
 app.use("/api/users", userRouter);
+app.use("/api/account", accountRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/connectors", connectorsRouter);
 app.use("/api/audit", auditRouter);

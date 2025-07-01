@@ -230,6 +230,8 @@ const testSnowflakeConnection = async (req, res, next) => {
     authMethod,
   } = req.body;
 
+  console.log("🧪 Starting testSnowflakeConnection...");
+
   if (!account || !username || !authMethod) {
     return next(
       new HttpError("Missing credentials to test Snowflake connection.", 400)
@@ -259,7 +261,6 @@ const testSnowflakeConnection = async (req, res, next) => {
         );
       }
 
-      let finalPrivateKey;
       try {
         const privateKeyObject = crypto.createPrivateKey({
           key: privateKey,
@@ -267,16 +268,15 @@ const testSnowflakeConnection = async (req, res, next) => {
           type: "pkcs8",
         });
 
-        finalPrivateKey = privateKeyObject.export({
+        connectionConfig.privateKey = privateKeyObject.export({
           format: "pem",
           type: "pkcs8",
         });
+
+        connectionConfig.authenticator = "SNOWFLAKE_JWT";
       } catch (keyErr) {
         return next(new HttpError("Invalid private key format.", 400));
       }
-
-      connectionConfig.privateKey = finalPrivateKey;
-      connectionConfig.authenticator = "SNOWFLAKE_JWT";
     } else if (authMethod === "oauth") {
       if (!oauthToken) {
         return next(new HttpError("Missing OAuth token.", 400));
@@ -289,19 +289,28 @@ const testSnowflakeConnection = async (req, res, next) => {
 
     const testConnection = snowflake.createConnection(connectionConfig);
 
-    await new Promise((resolve, reject) => {
+    // Add timeout to prevent indefinite hangs
+    const connectWithTimeout = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Check Snowflake Account"));
+      }, 10000);
+
       testConnection.connect((err, conn) => {
+        clearTimeout(timeout);
         if (err) return reject(err);
+        console.log("✅ Connected to Snowflake");
         resolve(conn);
       });
     });
+
+    await connectWithTimeout;
 
     await new Promise((resolve, reject) => {
       testConnection.execute({
         sqlText: "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()",
         complete: (err, stmt, rows) => {
           if (err) return reject(err);
-          console.log("✅ Test Query Result:", rows);
+          console.log("✅ Test query result:", rows);
           resolve();
         },
       });

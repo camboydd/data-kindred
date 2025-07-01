@@ -12,14 +12,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(undefined);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Fetch user info on initial load
   useEffect(() => {
     const checkLogin = async () => {
       try {
         const res = await axios.get("/api/users/check-auth", {
           withCredentials: true,
         });
-        // ✅ Make sure plan is included in response
-        setUser(res.data.user);
+        setUser(res.data.user); // ✅ Should include user.plan
       } catch (err) {
         console.error("Error checking auth:", err);
         setUser(null);
@@ -30,6 +30,18 @@ export const AuthProvider = ({ children }) => {
 
     checkLogin();
   }, []);
+
+  // ✅ Expose refreshUser so components can manually trigger a refresh
+  const refreshUser = async () => {
+    try {
+      const res = await axios.get("/api/users/check-auth", {
+        withCredentials: true,
+      });
+      setUser(res.data.user);
+    } catch (err) {
+      console.error("❌ Failed to refresh user:", err);
+    }
+  };
 
   const login = async (email, password, captchaToken) => {
     try {
@@ -42,7 +54,7 @@ export const AuthProvider = ({ children }) => {
       const res = await axios.get("/api/users/check-auth", {
         withCredentials: true,
       });
-      setUser(res.data.user); // ✅ Includes plan
+      setUser(res.data.user);
 
       return { success: true };
     } catch (err) {
@@ -66,7 +78,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, authLoading }}>
+    <AuthContext.Provider
+      value={{ user, setUser, login, logout, authLoading, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
 import { connectToSnowflake, executeQuery } from "./snowflake-connection.js";
 
 export const requireValidPlan = async (req, res, next) => {
-  const allowedPlans = ["Basic", "Pro", "Enterprise"];
+  const allowedPlans = ["basic", "pro", "enterprise"]; // all lowercase
   let plan = req.user?.plan;
   const accountId = req.user?.accountId;
 
@@ -21,14 +21,16 @@ export const requireValidPlan = async (req, res, next) => {
         [accountId]
       );
       plan = result?.[0]?.PLAN;
-      req.user.plan = plan; // ✅ Store plan on req.user
+      req.user.plan = plan; // ✅ Store original casing on req.user
     } catch (err) {
       console.error("❌ Failed to fetch plan from DB:", err);
       return res.status(500).json({ message: "Plan verification failed." });
     }
   }
 
-  if (!allowedPlans.includes(plan)) {
+  const normalizedPlan = plan?.toLowerCase();
+
+  if (!allowedPlans.includes(normalizedPlan)) {
     console.warn(`❌ Access blocked. Invalid plan: ${plan}`);
     return res.status(403).json({
       success: false,

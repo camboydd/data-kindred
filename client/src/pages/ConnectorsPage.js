@@ -68,8 +68,9 @@ const ConnectorsPage = () => {
   ).length;
 
   const planLimit =
-    user?.plan && PLAN_RULES[user.plan]?.maxConnectors !== Infinity
-      ? PLAN_RULES[user.plan].maxConnectors
+    user?.plan &&
+    PLAN_RULES[user?.plan?.toLowerCase()]?.maxConnectors !== Infinity
+      ? PLAN_RULES[user?.plan?.toLowerCase()].maxConnectors
       : null;
 
   useEffect(() => {
