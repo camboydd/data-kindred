@@ -8,7 +8,7 @@ export default function OAuthConfigForm({ accountId }) {
     clientSecret: "",
     authUrl: "",
     tokenUrl: "",
-    redirectUri: "http://localhost:3001/api/snowflake/oauth/callback",
+    redirectUri: "https://app.datakindred.com/api/snowflake/oauth/callback",
     scope: "offline_access openid",
   });
 
