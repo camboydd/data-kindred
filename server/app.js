@@ -198,6 +198,11 @@ app.use((err, req, res, next) => {
 });
 
 // Frontend catch-all
+app.get("/oauth/callback", (req, res, next) => {
+  // Let the backend handle this — don't send React index.html
+  next();
+});
+
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "client", "build", "index.html"));
 });
