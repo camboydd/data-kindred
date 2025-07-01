@@ -472,56 +472,86 @@ const handleOAuthCallback = async (req, res, next) => {
     const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
     if (!code || !accountId) {
+      console.error("❌ Missing code or accountId:", { code, accountId });
       return next(new HttpError("Missing OAuth code or accountId", 400));
     }
 
     const details = await getOAuthDetailsByAccountId(accountId);
+    console.log("📥 OAuth config from DB:", details);
+
     if (!details) {
       return next(new HttpError("OAuth config not found", 404));
     }
 
     const { token_url, client_id, client_secret, redirect_uri } = details;
 
-    const tokenRes = await axios.post(
-      token_url,
-      querystring.stringify({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri,
-        client_id,
-        client_secret,
-      }),
-      {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    let tokenRes;
+    try {
+      tokenRes = await axios.post(
+        token_url,
+        querystring.stringify({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri,
+          client_id,
+          client_secret,
+        }),
+        {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        }
+      );
+      console.log("✅ Token exchange response:", tokenRes.data);
+    } catch (tokenErr) {
+      console.error("❌ Token request failed:");
+      if (tokenErr.response) {
+        console.error("Status:", tokenErr.response.status);
+        console.error("Data:", tokenErr.response.data);
+      } else {
+        console.error(tokenErr.message);
       }
-    );
+      return next(new HttpError("OAuth token exchange failed", 500));
+    }
 
     const { access_token, refresh_token, expires_in } = tokenRes.data;
 
-    await saveSnowflakeOAuthTokens(accountId, {
-      access_token,
-      refresh_token,
-      expires_in,
-    });
+    try {
+      console.log("💾 Saving tokens for accountId:", accountId);
+      await saveSnowflakeOAuthTokens(accountId, {
+        access_token,
+        refresh_token,
+        expires_in,
+      });
+      console.log("✅ Saved OAuth tokens");
+    } catch (e) {
+      console.error("❌ Failed to save tokens:", e);
+      return next(new HttpError("Failed to save OAuth tokens", 500));
+    }
 
-    // ⬇️ Upsert CURRENT_AUTH_METHOD = 'oauth' into SNOWFLAKE_AUTH_METHOD
-    const conn = await connectToSnowflake();
-    await executeQuery(
-      conn,
-      `
-      MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_AUTH_METHOD target
-      USING (SELECT ? AS ACCOUNT_ID) source
-      ON target.ACCOUNT_ID = source.ACCOUNT_ID
-      WHEN MATCHED THEN UPDATE SET 
-        CURRENT_AUTH_METHOD = 'oauth',
-        UPDATED_AT = CURRENT_TIMESTAMP()
-      WHEN NOT MATCHED THEN INSERT (
-        ACCOUNT_ID, CURRENT_AUTH_METHOD, UPDATED_AT
-      ) VALUES (?, 'oauth', CURRENT_TIMESTAMP())
-      `,
-      [accountId, accountId]
-    );
+    try {
+      console.log("🔁 Upserting SNOWFLAKE_AUTH_METHOD for:", accountId);
+      const conn = await connectToSnowflake();
+      await executeQuery(
+        conn,
+        `
+        MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_AUTH_METHOD target
+        USING (SELECT ? AS ACCOUNT_ID) source
+        ON target.ACCOUNT_ID = source.ACCOUNT_ID
+        WHEN MATCHED THEN UPDATE SET 
+          CURRENT_AUTH_METHOD = 'oauth',
+          UPDATED_AT = CURRENT_TIMESTAMP()
+        WHEN NOT MATCHED THEN INSERT (
+          ACCOUNT_ID, CURRENT_AUTH_METHOD, UPDATED_AT
+        ) VALUES (?, 'oauth', CURRENT_TIMESTAMP())
+        `,
+        [accountId, accountId]
+      );
+      console.log("✅ Updated SNOWFLAKE_AUTH_METHOD");
+    } catch (e) {
+      console.error("❌ Failed to update SNOWFLAKE_AUTH_METHOD:", e);
+      return next(new HttpError("Failed to update auth method", 500));
+    }
 
+    console.log("🎉 Responding to client: OAuth success");
     return res.json({
       message: "✅ OAuth connection successful. You can now close this window.",
     });
