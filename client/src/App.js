@@ -62,10 +62,7 @@ const AppLayout = () => {
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/request-access" element={<RequestAccessPage />} />
-              <Route
-                path="/snowflake/oauth/callback"
-                element={<OAuthCallbackPage />}
-              />
+
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="*" element={<NotFoundPage />} />
@@ -73,6 +70,7 @@ const AppLayout = () => {
           )}
           {/* ✅ Always available */}
           <Route path="/upgrade" element={<UpgradePage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
           {/* Private Routes (only shown if logged in) */}
           {user && (
             <>
@@ -84,6 +82,7 @@ const AppLayout = () => {
                   </PrivateRoute>
                 }
               />
+
               <Route
                 path="/connectors"
                 element={
