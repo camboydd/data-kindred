@@ -34,7 +34,7 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
       return;
     }
 
-    const payload = { ...form }; // No accountId sent
+    const payload = { ...form, accountId }; // ✅ Include accountId
 
     try {
       const res = await fetch("/api/snowflake/oauth", {

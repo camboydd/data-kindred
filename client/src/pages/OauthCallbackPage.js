@@ -9,12 +9,9 @@ const OAuthCallbackPage = () => {
   const hasRunRef = useRef(false);
 
   useEffect(() => {
-    if (hasRunRef.current) return;
-    hasRunRef.current = true;
-
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("accountId");
+    const accountId = query.get("state"); // ✅ this is the `state` param sent originally
 
     if (!code || !accountId) {
       alert("❌ Missing required OAuth parameters.");
@@ -27,6 +24,7 @@ const OAuthCallbackPage = () => {
       try {
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -41,7 +39,6 @@ const OAuthCallbackPage = () => {
         }
       } catch (err) {
         alert("❌ OAuth callback failed.");
-        console.error(err);
       } finally {
         setLoading(false);
         navigate("/snowflake");
