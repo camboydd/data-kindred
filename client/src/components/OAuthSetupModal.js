@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
   const { user } = useAuth();
   const accountId = user?.accountId;
-  const token = localStorage.getItem("token");
 
   const [form, setForm] = useState({
     clientId: "e2d1a371-4e6d-4e26-a0a4-5abcc470b200",
@@ -35,13 +34,13 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
       return;
     }
 
-    const payload = { accountId, ...form };
+    const payload = { ...form }; // No accountId sent
 
     try {
       const res = await fetch("/api/snowflake/oauth", {
         method: "POST",
+        credentials: "include",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),

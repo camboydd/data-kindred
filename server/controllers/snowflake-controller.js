@@ -126,8 +126,8 @@ const getSnowflakeConfigs = async (req, res, next) => {
 };
 
 const createSnowflakeConfig = async (req, res, next) => {
+  const account = req.user?.accountId;
   const {
-    account,
     host,
     username,
     password,
@@ -286,8 +286,8 @@ const createSnowflakeConfig = async (req, res, next) => {
 };
 
 const testSnowflakeConnection = async (req, res, next) => {
+  const account = req.user?.accountId;
   const {
-    account,
     username,
     password,
     privateKey,
@@ -431,7 +431,8 @@ const deleteSnowflakeConfig = async (req, res, next) => {
 };
 
 const getSnowflakeConfigStatus = async (req, res, next) => {
-  const accountId = req.body.accountId;
+  const accountId = req.user?.accountId;
+
   if (!accountId) {
     return next(new HttpError("Missing account ID.", 400));
   }
@@ -624,7 +625,8 @@ async function getOAuthCredentials(accountId) {
 
 const authorizeSnowflakeOAuth = async (req, res, next) => {
   try {
-    const { accountId } = req.query;
+    const accountId = req.user?.accountId;
+
     if (!accountId) return next(new HttpError("Missing accountId", 400));
 
     const details = await getOAuthDetailsByAccountId(accountId);
@@ -760,8 +762,8 @@ const handleOAuthCallback = async (req, res, next) => {
 
 const saveOAuthConfig = async (req, res, next) => {
   try {
+    const accountId = req.user?.accountId;
     const {
-      accountId,
       clientId,
       clientSecret,
       authUrl,
@@ -849,7 +851,8 @@ const saveOAuthConfig = async (req, res, next) => {
 };
 
 const getAuthMethod = async (req, res) => {
-  const { accountId } = req.body;
+  const accountId = req.user?.accountId;
+
   console.log("✅ getAuthMethod hit with accountId:", req.body.accountId);
   const connection = await connectToSnowflake();
 
@@ -870,7 +873,8 @@ const getAuthMethod = async (req, res) => {
 
 // POST /api/snowflake/configs/delete
 const deleteSnowflakeConfigsByAccount = async (req, res, next) => {
-  const { accountId } = req.body;
+  const accountId = req.user?.accountId;
+
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
   if (!accountId) {

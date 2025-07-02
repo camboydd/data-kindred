@@ -40,12 +40,10 @@ const SnowflakeConfigPage = () => {
   useEffect(() => {
     if (!user || authLoading) return;
     const fetchAuthMethod = async () => {
-      // SnowflakeConfigPage fetch → update to remove Authorization
       const res = await authFetch("/api/snowflake/configs/auth-method", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }, // REMOVE Authorization header
-        body: JSON.stringify({ accountId: user.accountId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}), // ⬅️ accountId removed
       });
 
       if (res.ok) {
@@ -98,9 +96,8 @@ const SnowflakeConfigPage = () => {
       try {
         const res = await authFetch("/api/snowflake/configs/status", {
           method: "POST",
-          credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountId: user.accountId }),
+          body: JSON.stringify({}), // ⬅️ accountId removed
         });
 
         const data = await res.json();
@@ -111,7 +108,7 @@ const SnowflakeConfigPage = () => {
             setConnectionStatus("success");
           } else {
             setIsConfigured(false);
-            setConnectionStatus("error"); // 🧠 This was missing
+            setConnectionStatus("error");
           }
         } else {
           setConnectionStatus("error");
@@ -120,7 +117,7 @@ const SnowflakeConfigPage = () => {
         console.error("Error fetching Snowflake config status:", err);
         setConnectionStatus("error");
       } finally {
-        setStatusLoading(false); // ✅ Always clear spinner
+        setStatusLoading(false);
       }
     };
 
@@ -162,7 +159,6 @@ const SnowflakeConfigPage = () => {
       const refreshTokenFromStorage = localStorage.getItem("oauthRefreshToken");
 
       const payload = {
-        account: user.accountId,
         host,
         username,
         role,
@@ -178,7 +174,6 @@ const SnowflakeConfigPage = () => {
 
       const res = await authFetch("/api/snowflake/configs", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -191,7 +186,6 @@ const SnowflakeConfigPage = () => {
         setHasTestedSinceLastSave(false);
         localStorage.removeItem("oauthToken");
         localStorage.removeItem("oauthRefreshToken");
-
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         setSaveLoading(false);
@@ -274,7 +268,6 @@ const SnowflakeConfigPage = () => {
 
       const res = await authFetch("/api/snowflake/configs/test", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -304,14 +297,14 @@ const SnowflakeConfigPage = () => {
       setIsTested(false);
     }
   };
+
   const handleRemoveConfig = async () => {
     setDeleteLoading(true);
     try {
       const res = await authFetch("/api/snowflake/configs/delete", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: user.accountId }),
+        body: JSON.stringify({}), // ⬅️ accountId removed
       });
 
       const data = await res.json();

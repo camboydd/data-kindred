@@ -11,9 +11,8 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("state");
 
-    if (!code || !accountId) {
+    if (!code) {
       alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
@@ -35,7 +34,7 @@ const OAuthCallbackPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code, accountId }),
+          body: JSON.stringify({ code }), // ✅ only send code
         });
 
         const data = await res.json();
