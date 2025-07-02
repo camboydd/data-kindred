@@ -666,22 +666,15 @@ const handleOAuthCallback = async (req, res, next) => {
   try {
     const { code, accountId } = req.body;
 
-    console.log("📥 Received OAuth callback:");
-    console.log(" - Code:", code);
-    console.log(" - Account ID:", accountId);
-
     if (!code || !accountId) {
-      console.error("❌ Missing OAuth code or accountId");
       return next(new HttpError("Missing OAuth code or accountId", 400));
     }
 
-    // 1. Fetch client credentials
     const details = await getOAuthDetailsByAccountId(accountId);
     if (!details) return next(new HttpError("OAuth config not found", 404));
 
     const { token_url, client_id, client_secret, redirect_uri } = details;
 
-    // 2. Exchange code for tokens
     let tokenRes;
     try {
       tokenRes = await axios.post(
@@ -695,7 +688,6 @@ const handleOAuthCallback = async (req, res, next) => {
         }),
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
-      console.log("✅ Token exchange response received.");
     } catch (err) {
       console.error(
         "❌ Token exchange failed:",
@@ -707,55 +699,58 @@ const handleOAuthCallback = async (req, res, next) => {
     const { access_token, refresh_token, expires_in } = tokenRes.data;
     if (!access_token) return next(new HttpError("Missing access_token", 500));
 
-    // 3. Save tokens
-    try {
-      await saveSnowflakeOAuthTokens(accountId, {
-        access_token,
-        refresh_token,
-        expires_in,
-      });
-      console.log("✅ Tokens saved.");
-    } catch (err) {
-      console.error("❌ Failed to save tokens:", err);
-      return next(new HttpError("Failed to save OAuth tokens", 500));
-    }
+    const encryptedAccessToken = encrypt(access_token);
+    const encryptedRefreshToken = refresh_token ? encrypt(refresh_token) : null;
 
-    // 4. Set current auth method
-    try {
-      const conn = await connectToSnowflake();
-      await executeQuery(
-        conn,
-        `
-        MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_AUTH_METHOD target
-        USING (SELECT ? AS ACCOUNT_ID) source
-        ON target.ACCOUNT_ID = source.ACCOUNT_ID
-        WHEN MATCHED THEN UPDATE SET 
-          CURRENT_AUTH_METHOD = 'oauth',
-          UPDATED_AT = CURRENT_TIMESTAMP()
-        WHEN NOT MATCHED THEN INSERT (
-          ACCOUNT_ID, CURRENT_AUTH_METHOD, UPDATED_AT
-        ) VALUES (?, 'oauth', CURRENT_TIMESTAMP())
-        `,
-        [accountId, accountId]
-      );
-      console.log("✅ Auth method set to 'oauth'.");
-    } catch (err) {
-      console.error("❌ Failed to set auth method:", err);
-      return next(new HttpError("Failed to update auth method", 500));
-    }
+    const connection = await connectToSnowflake();
 
-    // 5. Upsert Snowflake config
-    try {
-      await upsertSnowflakeConfigFromOAuth(
-        accountId,
-        access_token,
-        refresh_token
-      );
-      console.log("✅ Snowflake config upserted.");
-    } catch (err) {
-      console.error("❌ Failed to upsert Snowflake config:", err);
-      return next(new HttpError("Failed to store Snowflake config", 500));
-    }
+    // Save to SNOWFLAKE_OAUTH_CONFIGS
+    await executeQuery(
+      connection,
+      `
+      UPDATE KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS
+      SET 
+        OAUTH_ACCESS_TOKEN_ENCRYPTED = ?,
+        OAUTH_REFRESH_TOKEN_ENCRYPTED = ?,
+        TOKEN_EXPIRES_AT = CURRENT_TIMESTAMP() + INTERVAL '${
+          expires_in || 3600
+        }' SECOND,
+        UPDATED_AT = CURRENT_TIMESTAMP()
+      WHERE ACCOUNT_ID = ?
+      `,
+      [encryptedAccessToken, encryptedRefreshToken, accountId]
+    );
+
+    // Save to SNOWFLAKE_CONFIGS (main connector config)
+    await executeQuery(
+      connection,
+      `
+      UPDATE KINDRED.PUBLIC.SNOWFLAKE_CONFIGS
+      SET 
+        OAUTH_ACCESS_TOKEN_ENCRYPTED = ?,
+        OAUTH_REFRESH_TOKEN_ENCRYPTED = ?,
+        UPDATED_AT = CURRENT_TIMESTAMP()
+      WHERE ACCOUNT_ID = ?
+      `,
+      [encryptedAccessToken, encryptedRefreshToken, accountId]
+    );
+
+    // Ensure auth method is marked as oauth
+    await executeQuery(
+      connection,
+      `
+      MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_AUTH_METHOD target
+      USING (SELECT ? AS ACCOUNT_ID) source
+      ON target.ACCOUNT_ID = source.ACCOUNT_ID
+      WHEN MATCHED THEN UPDATE SET 
+        CURRENT_AUTH_METHOD = 'oauth',
+        UPDATED_AT = CURRENT_TIMESTAMP()
+      WHEN NOT MATCHED THEN INSERT (
+        ACCOUNT_ID, CURRENT_AUTH_METHOD, UPDATED_AT
+      ) VALUES (?, 'oauth', CURRENT_TIMESTAMP())
+      `,
+      [accountId, accountId]
+    );
 
     return res.json({
       message: "✅ OAuth connection successful. You can now close this window.",
