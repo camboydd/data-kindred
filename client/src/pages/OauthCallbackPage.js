@@ -11,21 +11,23 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("state"); // plain UUID
-    const token = localStorage.getItem("token");
+    const accountId = query.get("state");
 
-    if (!code || !accountId || !token) {
-      console.error("❌ Missing parameters:", { code, accountId, token });
+    if (!code || !accountId) {
       alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
       return;
     }
 
-    const sendCode = async () => {
-      if (hasRunRef.current) return;
-      hasRunRef.current = true;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("❌ Missing auth token. Please log in.");
+      navigate("/login");
+      return;
+    }
 
+    const sendCode = async () => {
       try {
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
@@ -37,16 +39,13 @@ const OAuthCallbackPage = () => {
         });
 
         const data = await res.json();
-
         if (res.ok) {
           alert("✅ OAuth connection successful.");
         } else {
-          console.error("❌ Backend error:", data);
           alert(`❌ OAuth failed: ${data.message || "Unknown error"}`);
         }
       } catch (err) {
-        console.error("❌ Network error:", err);
-        alert("❌ OAuth callback failed. See console for details.");
+        alert("❌ OAuth callback failed.");
       } finally {
         setLoading(false);
         navigate("/snowflake");
@@ -54,7 +53,7 @@ const OAuthCallbackPage = () => {
     };
 
     sendCode();
-  }, [navigate]);
+  }, []);
 
   return (
     <div className="modal-overlay">

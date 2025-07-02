@@ -644,7 +644,7 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
       redirect_uri,
       scope,
       response_mode: "query",
-      state: accountId, // Simplified state
+      state: accountId, // send raw accountId
     });
 
     return res.redirect(`${auth_url}?${params}`);
