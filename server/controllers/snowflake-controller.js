@@ -674,6 +674,7 @@ const saveOAuthConfig = async (req, res, next) => {
         .status(400)
         .json({ success: false, message: "Missing required fields" });
     }
+    const connection = await connectToSnowflake();
 
     await executeQuery(
       connection,
