@@ -640,14 +640,25 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
       scope = "offline_access openid",
     } = details;
 
+    // 🔐 Embed token in state
+    const bearerToken = req.headers.authorization?.split(" ")[1];
+
+    const statePayload = {
+      accountId,
+      token: bearerToken || null,
+    };
+
+    const state = Buffer.from(JSON.stringify(statePayload)).toString("base64");
+
     const params = querystring.stringify({
       client_id,
       response_type: "code",
       redirect_uri,
       scope,
       response_mode: "query",
-      state: accountId,
+      state,
     });
+
     return res.redirect(`${auth_url}?${params}`);
   } catch (err) {
     console.error("❌ OAuth authorization error:", err);

@@ -6,15 +6,29 @@ import "./OAuthCallbackPage.css";
 const OAuthCallbackPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const hasRunRef = useRef(false); // Proper way to persist across renders
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("state");
+    const stateEncoded = query.get("state");
+    let accountId = null;
+    let token = null;
 
-    if (!code || !accountId) {
-      alert("❌ Missing authorization code or account ID.");
+    try {
+      const stateDecoded = JSON.parse(atob(stateEncoded));
+      accountId = stateDecoded.accountId;
+      token = localStorage.getItem("token") || stateDecoded.token;
+
+      if (token && !localStorage.getItem("token")) {
+        localStorage.setItem("token", token);
+      }
+    } catch (err) {
+      console.error("❌ Failed to decode OAuth state param:", err);
+    }
+
+    if (!code || !accountId || !token) {
+      alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
       return;
@@ -25,18 +39,7 @@ const OAuthCallbackPage = () => {
       hasRunRef.current = true;
 
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          alert("❌ Missing auth token. Please log in again.");
-          navigate("/login");
-          return;
-        }
-
         console.log("➡️ Sending OAuth code to backend:", { code, accountId });
-        console.log(
-          "➡️ Token from localStorage:",
-          localStorage.getItem("token")
-        );
 
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
@@ -56,7 +59,7 @@ const OAuthCallbackPage = () => {
           alert(`❌ OAuth failed: ${data.message || "Unknown error"}`);
         }
       } catch (err) {
-        console.error("❌ Network or parsing error:", err);
+        console.error("❌ Network error:", err);
         alert("❌ OAuth callback failed. See console for details.");
       } finally {
         setLoading(false);
