@@ -668,30 +668,47 @@ async function getOAuthCredentials(accountId) {
 
 const authorizeSnowflakeOAuth = async (req, res, next) => {
   try {
-    const accountId = req.query.accountId;
-    if (!accountId) return next(new HttpError("Missing accountId", 400));
+    const { accountId, redirect_uri } = req.query;
 
-    const details = await getOAuthDetailsByAccountId(accountId);
-    if (!details)
-      return next(new HttpError("OAuth config not found for account", 404));
+    if (!accountId) {
+      throw new HttpError("Missing accountId in query", 400);
+    }
 
-    const {
-      client_id,
-      redirect_uri,
-      auth_url,
-      scope = "offline_access openid",
-    } = details;
+    const connection = await connectToSnowflake();
 
-    const params = querystring.stringify({
-      client_id,
+    const [row] = await executeQuery(
+      connection,
+      `SELECT CLIENT_ID, AUTH_URL, REDIRECT_URI, SCOPE, HOST FROM KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS WHERE ACCOUNT_ID = ? LIMIT 1`,
+      [accountId]
+    );
+
+    if (!row) {
+      throw new HttpError("OAuth config not found for this account", 404);
+    }
+
+    const clientId = row.CLIENT_ID;
+    const authUrl = row.AUTH_URL;
+    const configuredRedirectUri = row.REDIRECT_URI;
+    const scope =
+      row.SCOPE?.trim() ||
+      `https://${row.HOST}.snowflakecomputing.com/session:role-any`;
+
+    const host = row.HOST; // ✅ Fix: extract host before use
+
+    // Determine redirect_uri to use
+    const finalRedirectUri = redirect_uri || configuredRedirectUri;
+
+    const params = new URLSearchParams({
       response_type: "code",
-      redirect_uri,
-      scope: `https://${host}.snowflakecomputing.com/session:role-any`,
-      response_mode: "query",
-      state: accountId,
+      client_id: clientId,
+      redirect_uri: finalRedirectUri,
+      scope,
     });
 
-    return res.redirect(`${auth_url}?${params}`);
+    const fullUrl = `${authUrl}?${params.toString()}`;
+
+    console.log("🌐 Redirecting to OAuth URL:", fullUrl);
+    return res.redirect(fullUrl);
   } catch (err) {
     console.error("❌ OAuth authorization error:", err);
     return next(new HttpError("Failed to initiate OAuth flow.", 500));
