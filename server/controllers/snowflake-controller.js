@@ -625,8 +625,7 @@ async function getOAuthCredentials(accountId) {
 
 const authorizeSnowflakeOAuth = async (req, res, next) => {
   try {
-    const accountId = req.user?.accountId;
-
+    const accountId = req.user?.accountId || req.query.accountId;
     if (!accountId) return next(new HttpError("Missing accountId", 400));
 
     const details = await getOAuthDetailsByAccountId(accountId);
