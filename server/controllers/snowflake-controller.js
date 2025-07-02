@@ -9,6 +9,7 @@ import { Buffer } from "buffer";
 import crypto from "crypto";
 import snowflake from "snowflake-sdk";
 import axios from "axios";
+import qs from "qs";
 import querystring from "querystring";
 import { saveSnowflakeOAuthTokens } from "../util/saveSnowflakeOAuthTokens.js";
 import { getOAuthDetailsByAccountId } from "../util/getOAuthDetailsByAccountId.js";
@@ -41,6 +42,9 @@ async function upsertSnowflakeConfigFromOAuth(
   );
 
   if (!row) throw new Error("Missing base config data for account");
+  if (!row.HOST || !row.USERNAME || !row.ROLE || !row.WAREHOUSE) {
+    throw new Error("OAuth base config is incomplete.");
+  }
 
   const id = uuidv4();
 
@@ -428,7 +432,6 @@ const deleteSnowflakeConfig = async (req, res, next) => {
 
 const getSnowflakeConfigStatus = async (req, res, next) => {
   const accountId = req.body.accountId;
-
   if (!accountId) {
     return next(new HttpError("Missing account ID.", 400));
   }
@@ -440,7 +443,8 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
       connection,
       `
       SELECT HOST, USERNAME, AUTH_METHOD, PASSWORD_ENCRYPTED, PRIVATE_KEY_ENCRYPTED,
-             PASSPHRASE_ENCRYPTED, OAUTH_ACCESS_TOKEN_ENCRYPTED, ROLE, WAREHOUSE
+             PASSPHRASE_ENCRYPTED, OAUTH_ACCESS_TOKEN_ENCRYPTED, OAUTH_REFRESH_TOKEN_ENCRYPTED,
+             ROLE, WAREHOUSE
       FROM KINDRED.PUBLIC.SNOWFLAKE_CONFIGS
       WHERE ACCOUNT_ID = ?
       LIMIT 1
@@ -463,11 +467,14 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
     const passphrase = config.PASSPHRASE_ENCRYPTED
       ? decrypt(config.PASSPHRASE_ENCRYPTED)
       : undefined;
-    const oauthToken = config.OAUTH_ACCESS_TOKEN_ENCRYPTED
+    let accessToken = config.OAUTH_ACCESS_TOKEN_ENCRYPTED
       ? decrypt(config.OAUTH_ACCESS_TOKEN_ENCRYPTED)
       : undefined;
+    const refreshToken = config.OAUTH_REFRESH_TOKEN_ENCRYPTED
+      ? decrypt(config.OAUTH_REFRESH_TOKEN_ENCRYPTED)
+      : undefined;
 
-    const testConnection = snowflake.createConnection({
+    const connectionConfig = {
       account: config.HOST,
       username: config.USERNAME,
       role: config.ROLE,
@@ -481,22 +488,102 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
       password: config.AUTH_METHOD === "password" ? password : undefined,
       privateKey: config.AUTH_METHOD === "keypair" ? privateKey : undefined,
       passphrase: config.AUTH_METHOD === "keypair" ? passphrase : undefined,
-      token: config.AUTH_METHOD === "oauth" ? oauthToken : undefined,
-    });
+      token: config.AUTH_METHOD === "oauth" ? accessToken : undefined,
+    };
 
-    await new Promise((resolve, reject) => {
-      testConnection.connect((err, conn) => {
-        if (err) return reject(err);
-        resolve(conn);
+    const connectWithTimeout = () =>
+      new Promise((resolve, reject) => {
+        const conn = snowflake.createConnection(connectionConfig);
+        const timeout = setTimeout(() => {
+          reject(new Error("Connection timed out (8s)."));
+        }, 8000);
+        conn.connect((err) => {
+          clearTimeout(timeout);
+          if (err) return reject(err);
+          resolve(conn);
+        });
       });
-    });
 
-    res.status(200).json({ isConfigured: true });
+    try {
+      await connectWithTimeout();
+      return res.status(200).json({ isConfigured: true });
+    } catch (err) {
+      console.warn("🔁 Initial connection failed:", err.message);
+
+      if (
+        config.AUTH_METHOD === "oauth" &&
+        refreshToken &&
+        err.message.includes("JWT") // Snowflake returns JWT error when token is expired
+      ) {
+        console.log("🔄 Attempting token refresh...");
+        const creds = await getOAuthCredentials(accountId);
+        const tokenRes = await axios.post(
+          creds.token_url,
+          qs.stringify({
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+            client_id: creds.client_id,
+            client_secret: creds.client_secret,
+          }),
+          {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          }
+        );
+
+        if (!tokenRes.data.access_token) {
+          throw new Error("Token refresh failed: No access_token returned.");
+        }
+
+        const newAccessToken = tokenRes.data.access_token;
+        const encryptedAccessToken = encrypt(newAccessToken);
+
+        // Update the DB with new token
+        await executeQuery(
+          connection,
+          `UPDATE KINDRED.PUBLIC.SNOWFLAKE_CONFIGS
+           SET OAUTH_ACCESS_TOKEN_ENCRYPTED = ?
+           WHERE ACCOUNT_ID = ?`,
+          [encryptedAccessToken, accountId]
+        );
+
+        // Retry connection with new token
+        connectionConfig.token = newAccessToken;
+        await connectWithTimeout();
+
+        return res.status(200).json({ isConfigured: true });
+      }
+
+      throw err;
+    }
   } catch (err) {
     console.error("❌ Snowflake config validation failed:", err.message || err);
-    res.status(200).json({ isConfigured: false });
+    return res.status(200).json({
+      isConfigured: false,
+      error: err.message || "Connection check failed",
+    });
   }
 };
+
+// Utility to look up OAuth creds
+async function getOAuthCredentials(accountId) {
+  const connection = await connectToSnowflake();
+  const rows = await executeQuery(
+    connection,
+    `
+    SELECT CLIENT_ID, CLIENT_SECRET, TOKEN_URL
+    FROM KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS
+    WHERE ACCOUNT_ID = ?
+    LIMIT 1
+    `,
+    [accountId]
+  );
+  if (!rows.length) throw new Error("OAuth config not found for account");
+  return {
+    client_id: rows[0].CLIENT_ID,
+    client_secret: decrypt(rows[0].CLIENT_SECRET),
+    token_url: rows[0].TOKEN_URL,
+  };
+}
 
 const authorizeSnowflakeOAuth = async (req, res, next) => {
   try {

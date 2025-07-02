@@ -19,7 +19,7 @@ const SnowflakeConfigPage = () => {
     oauthRefreshToken: "",
     role: "",
     warehouse: "",
-    authMethod: "password",
+    authMethod: "oauth",
   });
 
   const [message, setMessage] = useState("");
@@ -55,6 +55,40 @@ const SnowflakeConfigPage = () => {
     };
 
     fetchAuthMethod();
+  }, [user, authLoading]);
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const fetchExistingConfig = async () => {
+      try {
+        const res = await authFetch("/api/snowflake/configs", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId: user.accountId }),
+        });
+
+        if (res.ok) {
+          const config = await res.json();
+          if (config && config.length > 0) {
+            const cfg = config[0];
+            setSnowflakeConfig((prev) => ({
+              ...prev,
+              host: cfg.HOST || "",
+              username: cfg.USERNAME || "",
+              role: cfg.ROLE || "",
+              warehouse: cfg.WAREHOUSE || "",
+              authMethod:
+                cfg.AUTH_METHOD === "oauth" ? "oauth" : prev.authMethod,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("❌ Failed to load existing Snowflake config:", err);
+      }
+    };
+
+    fetchExistingConfig();
   }, [user, authLoading]);
 
   useEffect(() => {
@@ -116,6 +150,9 @@ const SnowflakeConfigPage = () => {
         authMethod,
       } = snowflakeConfig;
 
+      const tokenFromStorage = localStorage.getItem("oauthToken");
+      const refreshTokenFromStorage = localStorage.getItem("oauthRefreshToken");
+
       const payload = {
         account: user.accountId,
         host,
@@ -126,9 +163,9 @@ const SnowflakeConfigPage = () => {
         password: authMethod === "password" ? password : undefined,
         privateKey: authMethod === "keypair" ? privateKey : undefined,
         passphrase: authMethod === "keypair" ? passphrase : undefined,
-        oauthToken: authMethod === "oauth" ? oauthToken : undefined,
+        oauthToken: authMethod === "oauth" ? tokenFromStorage : undefined,
         oauthRefreshToken:
-          authMethod === "oauth" ? oauthRefreshToken : undefined,
+          authMethod === "oauth" ? refreshTokenFromStorage : undefined,
       };
 
       const res = await authFetch("/api/snowflake/configs", {
@@ -201,6 +238,9 @@ const SnowflakeConfigPage = () => {
     }
 
     try {
+      const tokenFromStorage = localStorage.getItem("oauthToken");
+      const refreshTokenFromStorage = localStorage.getItem("oauthRefreshToken");
+
       const payload = {
         account: snowflakeConfig.host,
         username: snowflakeConfig.username,
@@ -220,9 +260,7 @@ const SnowflakeConfigPage = () => {
             ? snowflakeConfig.passphrase
             : undefined,
         oauthToken:
-          snowflakeConfig.authMethod === "oauth"
-            ? snowflakeConfig.oauthToken
-            : undefined,
+          snowflakeConfig.authMethod === "oauth" ? tokenFromStorage : undefined,
         schema: "PUBLIC",
       };
 
