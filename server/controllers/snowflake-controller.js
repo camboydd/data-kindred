@@ -627,8 +627,6 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
     const { accountId } = req.query;
     if (!accountId) return next(new HttpError("Missing accountId", 400));
 
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
     const details = await getOAuthDetailsByAccountId(accountId);
     if (!details)
       return next(new HttpError("OAuth config not found for account", 404));
@@ -640,23 +638,13 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
       scope = "offline_access openid",
     } = details;
 
-    // 🔐 Embed token in state
-    const bearerToken = req.headers.authorization?.split(" ")[1];
-
-    const statePayload = {
-      accountId,
-      token: bearerToken || null,
-    };
-
-    const state = Buffer.from(JSON.stringify(statePayload)).toString("base64");
-
     const params = querystring.stringify({
       client_id,
       response_type: "code",
       redirect_uri,
       scope,
       response_mode: "query",
-      state,
+      state: accountId, // Simplified state
     });
 
     return res.redirect(`${auth_url}?${params}`);
@@ -669,22 +657,19 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
 const handleOAuthCallback = async (req, res, next) => {
   try {
     const { code, accountId } = req.body;
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
     if (!code || !accountId) {
-      console.error("❌ Missing code or accountId:", { code, accountId });
+      console.error("❌ Missing OAuth code or accountId");
       return next(new HttpError("Missing OAuth code or accountId", 400));
     }
 
+    // 1. Fetch app credentials and redirect URI
     const details = await getOAuthDetailsByAccountId(accountId);
-    console.log("📥 OAuth config from DB:", details);
-
-    if (!details) {
-      return next(new HttpError("OAuth config not found", 404));
-    }
+    if (!details) return next(new HttpError("OAuth config not found", 404));
 
     const { token_url, client_id, client_secret, redirect_uri } = details;
 
+    // 2. Exchange code for tokens
     let tokenRes;
     try {
       tokenRes = await axios.post(
@@ -696,39 +681,35 @@ const handleOAuthCallback = async (req, res, next) => {
           client_id,
           client_secret,
         }),
-        {
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        }
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
-      console.log("✅ Token exchange response:", tokenRes.data);
-    } catch (tokenErr) {
-      console.error("❌ Token request failed:");
-      if (tokenErr.response) {
-        console.error("Status:", tokenErr.response.status);
-        console.error("Data:", tokenErr.response.data);
-      } else {
-        console.error(tokenErr.message);
-      }
+      console.log("✅ Token exchange response received.");
+    } catch (err) {
+      console.error(
+        "❌ Token exchange failed:",
+        err.response?.data || err.message
+      );
       return next(new HttpError("OAuth token exchange failed", 500));
     }
 
     const { access_token, refresh_token, expires_in } = tokenRes.data;
+    if (!access_token) return next(new HttpError("Missing access_token", 500));
 
+    // 3. Save tokens
     try {
-      console.log("💾 Saving tokens for accountId:", accountId);
       await saveSnowflakeOAuthTokens(accountId, {
         access_token,
         refresh_token,
         expires_in,
       });
-      console.log("✅ Saved OAuth tokens");
-    } catch (e) {
-      console.error("❌ Failed to save tokens:", e);
+      console.log("✅ Tokens saved.");
+    } catch (err) {
+      console.error("❌ Failed to save tokens:", err);
       return next(new HttpError("Failed to save OAuth tokens", 500));
     }
 
+    // 4. Set current auth method
     try {
-      console.log("🔁 Upserting SNOWFLAKE_AUTH_METHOD for:", accountId);
       const conn = await connectToSnowflake();
       await executeQuery(
         conn,
@@ -745,34 +726,30 @@ const handleOAuthCallback = async (req, res, next) => {
         `,
         [accountId, accountId]
       );
-      console.log("✅ Updated SNOWFLAKE_AUTH_METHOD");
-    } catch (e) {
-      console.error("❌ Failed to update SNOWFLAKE_AUTH_METHOD:", e);
+      console.log("✅ Auth method set to 'oauth'.");
+    } catch (err) {
+      console.error("❌ Failed to set auth method:", err);
       return next(new HttpError("Failed to update auth method", 500));
     }
 
+    // 5. Upsert config row
     try {
-      console.log("🧩 Inserting/updating SNOWFLAKE_CONFIGS for:", accountId);
       await upsertSnowflakeConfigFromOAuth(
         accountId,
         access_token,
         refresh_token
       );
-      console.log("✅ Upserted SNOWFLAKE_CONFIGS row");
-    } catch (e) {
-      console.error("❌ Failed to upsert SNOWFLAKE_CONFIGS:", e);
+      console.log("✅ Snowflake config upserted.");
+    } catch (err) {
+      console.error("❌ Failed to upsert Snowflake config:", err);
       return next(new HttpError("Failed to store Snowflake config", 500));
     }
 
-    console.log("🎉 Responding to client: OAuth success");
     return res.json({
       message: "✅ OAuth connection successful. You can now close this window.",
     });
   } catch (err) {
-    console.error(
-      "❌ OAuth callback error:",
-      err.response?.data || err.message || err
-    );
+    console.error("❌ OAuth callback unexpected failure:", err.message || err);
     return next(new HttpError("OAuth callback failed", 500));
   }
 };

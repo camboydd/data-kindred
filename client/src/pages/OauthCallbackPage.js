@@ -11,21 +11,8 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const stateEncoded = query.get("state");
-    let accountId = null;
-    let token = null;
-
-    try {
-      const stateDecoded = JSON.parse(atob(stateEncoded));
-      accountId = stateDecoded.accountId;
-      token = localStorage.getItem("token") || stateDecoded.token;
-
-      if (token && !localStorage.getItem("token")) {
-        localStorage.setItem("token", token);
-      }
-    } catch (err) {
-      console.error("❌ Failed to decode OAuth state param:", err);
-    }
+    const accountId = query.get("state"); // plain string, no base64 decoding
+    const token = localStorage.getItem("token");
 
     if (!code || !accountId || !token) {
       alert("❌ Missing required OAuth parameters.");
@@ -39,8 +26,6 @@ const OAuthCallbackPage = () => {
       hasRunRef.current = true;
 
       try {
-        console.log("➡️ Sending OAuth code to backend:", { code, accountId });
-
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
           headers: {
@@ -55,11 +40,10 @@ const OAuthCallbackPage = () => {
         if (res.ok) {
           alert("✅ OAuth connection successful.");
         } else {
-          console.error("❌ Backend error:", data);
           alert(`❌ OAuth failed: ${data.message || "Unknown error"}`);
         }
       } catch (err) {
-        console.error("❌ Network error:", err);
+        console.error("❌ OAuth network error:", err);
         alert("❌ OAuth callback failed. See console for details.");
       } finally {
         setLoading(false);
