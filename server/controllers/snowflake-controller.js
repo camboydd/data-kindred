@@ -776,13 +776,16 @@ const handleOAuthCallback = async (req, res, next) => {
       SET 
         OAUTH_ACCESS_TOKEN_ENCRYPTED = ?,
         OAUTH_REFRESH_TOKEN_ENCRYPTED = ?,
-        TOKEN_EXPIRES_AT = CURRENT_TIMESTAMP() + INTERVAL '${
-          expires_in || 3600
-        }' SECOND,
+        TOKEN_EXPIRES_AT = DATEADD(SECOND, ?, CURRENT_TIMESTAMP()),
         UPDATED_AT = CURRENT_TIMESTAMP()
       WHERE ACCOUNT_ID = ?
       `,
-      [encryptedAccessToken, encryptedRefreshToken, accountId]
+      [
+        encryptedAccessToken,
+        expires_in || 3600,
+        encryptedRefreshToken,
+        accountId,
+      ]
     );
 
     await executeQuery(
