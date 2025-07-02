@@ -9,20 +9,17 @@ const OAuthCallbackPage = () => {
   const hasRunRef = useRef(false);
 
   useEffect(() => {
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
+
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
+    const accountId = query.get("accountId");
 
-    if (!code) {
+    if (!code || !accountId) {
       alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("❌ Missing auth token. Please log in.");
-      navigate("/login");
       return;
     }
 
@@ -31,10 +28,9 @@ const OAuthCallbackPage = () => {
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code }), // ✅ only send code
+          body: JSON.stringify({ code, accountId }),
         });
 
         const data = await res.json();
@@ -45,6 +41,7 @@ const OAuthCallbackPage = () => {
         }
       } catch (err) {
         alert("❌ OAuth callback failed.");
+        console.error(err);
       } finally {
         setLoading(false);
         navigate("/snowflake");
