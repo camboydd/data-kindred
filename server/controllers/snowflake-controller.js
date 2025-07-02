@@ -642,40 +642,42 @@ const handleOAuthCallback = async (req, res, next) => {
   }
 };
 
-const {
-  accountId,
-  clientId,
-  clientSecret,
-  authUrl,
-  tokenUrl,
-  redirectUri,
-  scope,
-  host,
-  username,
-  role,
-  warehouse,
-} = req.body;
+const saveOAuthConfig = async (req, res, next) => {
+  try {
+    const {
+      accountId,
+      clientId,
+      clientSecret,
+      authUrl,
+      tokenUrl,
+      redirectUri,
+      scope,
+      host,
+      username,
+      role,
+      warehouse,
+    } = req.body;
 
-if (
-  !accountId ||
-  !clientId ||
-  !clientSecret ||
-  !authUrl ||
-  !tokenUrl ||
-  !redirectUri ||
-  !host ||
-  !username ||
-  !role ||
-  !warehouse
-) {
-  return res
-    .status(400)
-    .json({ success: false, message: "Missing required fields" });
-}
+    if (
+      !accountId ||
+      !clientId ||
+      !clientSecret ||
+      !authUrl ||
+      !tokenUrl ||
+      !redirectUri ||
+      !host ||
+      !username ||
+      !role ||
+      !warehouse
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
+    }
 
-await executeQuery(
-  connection,
-  `
+    await executeQuery(
+      connection,
+      `
   MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS target
   USING (SELECT ? AS ACCOUNT_ID) source
   ON target.ACCOUNT_ID = source.ACCOUNT_ID
@@ -696,31 +698,38 @@ await executeQuery(
     HOST, USERNAME, ROLE, WAREHOUSE, CREATED_AT
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP())
   `,
-  [
-    accountId,
-    clientId,
-    clientSecret,
-    authUrl,
-    tokenUrl,
-    redirectUri,
-    scope || "offline_access openid",
-    host,
-    username,
-    role,
-    warehouse,
-    accountId,
-    clientId,
-    clientSecret,
-    authUrl,
-    tokenUrl,
-    redirectUri,
-    scope || "offline_access openid",
-    host,
-    username,
-    role,
-    warehouse,
-  ]
-);
+      [
+        accountId,
+        clientId,
+        clientSecret,
+        authUrl,
+        tokenUrl,
+        redirectUri,
+        scope || "offline_access openid",
+        host,
+        username,
+        role,
+        warehouse,
+        accountId,
+        clientId,
+        clientSecret,
+        authUrl,
+        tokenUrl,
+        redirectUri,
+        scope || "offline_access openid",
+        host,
+        username,
+        role,
+        warehouse,
+      ]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Failed to save OAuth config:", err);
+    next(err);
+  }
+};
 
 const getAuthMethod = async (req, res) => {
   const { accountId } = req.body;
