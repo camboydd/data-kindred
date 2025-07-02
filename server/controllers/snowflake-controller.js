@@ -527,7 +527,7 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
       if (
         config.AUTH_METHOD === "oauth" &&
         refreshToken &&
-        err.message.includes("JWT")
+        /jwt|oauth|token|expired|invalid/i.test(err.message)
       ) {
         console.log("🔄 Attempting token refresh...");
         const creds = await getOAuthCredentials(accountId);
@@ -602,7 +602,6 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
   }
 };
 
-// Utility to look up OAuth creds
 async function getOAuthCredentials(accountId) {
   const connection = await connectToSnowflake();
   const rows = await executeQuery(
@@ -615,7 +614,15 @@ async function getOAuthCredentials(accountId) {
     `,
     [accountId]
   );
-  if (!rows.length) throw new Error("OAuth config not found for account");
+
+  if (!rows.length) {
+    throw new Error("OAuth config not found for account");
+  }
+
+  if (!rows[0].CLIENT_SECRET) {
+    throw new Error("CLIENT_SECRET is undefined in SNOWFLAKE_OAUTH_CONFIGS");
+  }
+
   return {
     client_id: rows[0].CLIENT_ID,
     client_secret: decrypt(rows[0].CLIENT_SECRET),
@@ -791,35 +798,38 @@ const saveOAuthConfig = async (req, res, next) => {
         .status(400)
         .json({ success: false, message: "Missing required fields" });
     }
+
     const connection = await connectToSnowflake();
+
+    const encryptedClientSecret = encrypt(clientSecret); // ✅ encrypt before storing
 
     await executeQuery(
       connection,
       `
-  MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS target
-  USING (SELECT ? AS ACCOUNT_ID) source
-  ON target.ACCOUNT_ID = source.ACCOUNT_ID
-  WHEN MATCHED THEN UPDATE SET 
-    CLIENT_ID = ?, 
-    CLIENT_SECRET = ?, 
-    AUTH_URL = ?, 
-    TOKEN_URL = ?, 
-    REDIRECT_URI = ?, 
-    SCOPE = ?, 
-    HOST = ?, 
-    USERNAME = ?, 
-    ROLE = ?, 
-    WAREHOUSE = ?, 
-    UPDATED_AT = CURRENT_TIMESTAMP()
-  WHEN NOT MATCHED THEN INSERT (
-    ACCOUNT_ID, CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, REDIRECT_URI, SCOPE,
-    HOST, USERNAME, ROLE, WAREHOUSE, CREATED_AT
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP())
-  `,
+      MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS target
+      USING (SELECT ? AS ACCOUNT_ID) source
+      ON target.ACCOUNT_ID = source.ACCOUNT_ID
+      WHEN MATCHED THEN UPDATE SET 
+        CLIENT_ID = ?, 
+        CLIENT_SECRET = ?, 
+        AUTH_URL = ?, 
+        TOKEN_URL = ?, 
+        REDIRECT_URI = ?, 
+        SCOPE = ?, 
+        HOST = ?, 
+        USERNAME = ?, 
+        ROLE = ?, 
+        WAREHOUSE = ?, 
+        UPDATED_AT = CURRENT_TIMESTAMP()
+      WHEN NOT MATCHED THEN INSERT (
+        ACCOUNT_ID, CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, REDIRECT_URI, SCOPE,
+        HOST, USERNAME, ROLE, WAREHOUSE, CREATED_AT
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP())
+      `,
       [
         accountId,
         clientId,
-        clientSecret,
+        encryptedClientSecret, // ✅
         authUrl,
         tokenUrl,
         redirectUri,
@@ -830,7 +840,7 @@ const saveOAuthConfig = async (req, res, next) => {
         warehouse,
         accountId,
         clientId,
-        clientSecret,
+        encryptedClientSecret, // ✅
         authUrl,
         tokenUrl,
         redirectUri,
@@ -848,7 +858,6 @@ const saveOAuthConfig = async (req, res, next) => {
     next(err);
   }
 };
-
 const getAuthMethod = async (req, res) => {
   const accountId = req.user?.accountId;
 
