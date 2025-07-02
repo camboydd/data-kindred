@@ -11,10 +11,11 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("state"); // plain string, no base64 decoding
+    const accountId = query.get("state"); // plain UUID
     const token = localStorage.getItem("token");
 
     if (!code || !accountId || !token) {
+      console.error("❌ Missing parameters:", { code, accountId, token });
       alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
@@ -40,10 +41,11 @@ const OAuthCallbackPage = () => {
         if (res.ok) {
           alert("✅ OAuth connection successful.");
         } else {
+          console.error("❌ Backend error:", data);
           alert(`❌ OAuth failed: ${data.message || "Unknown error"}`);
         }
       } catch (err) {
-        console.error("❌ OAuth network error:", err);
+        console.error("❌ Network error:", err);
         alert("❌ OAuth callback failed. See console for details.");
       } finally {
         setLoading(false);
