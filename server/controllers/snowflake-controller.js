@@ -658,12 +658,16 @@ const handleOAuthCallback = async (req, res, next) => {
   try {
     const { code, accountId } = req.body;
 
+    console.log("📥 Received OAuth callback:");
+    console.log(" - Code:", code);
+    console.log(" - Account ID:", accountId);
+
     if (!code || !accountId) {
       console.error("❌ Missing OAuth code or accountId");
       return next(new HttpError("Missing OAuth code or accountId", 400));
     }
 
-    // 1. Fetch app credentials and redirect URI
+    // 1. Fetch client credentials
     const details = await getOAuthDetailsByAccountId(accountId);
     if (!details) return next(new HttpError("OAuth config not found", 404));
 
@@ -732,7 +736,7 @@ const handleOAuthCallback = async (req, res, next) => {
       return next(new HttpError("Failed to update auth method", 500));
     }
 
-    // 5. Upsert config row
+    // 5. Upsert Snowflake config
     try {
       await upsertSnowflakeConfigFromOAuth(
         accountId,
