@@ -11,11 +11,26 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    let accountId = query.get("state");
+    const stateParam = query.get("state");
+    let accountId = null;
+
     try {
-      accountId = JSON.parse(accountId).accountId;
+      // ✅ Properly decode and parse `state`
+      if (stateParam) {
+        const decoded = decodeURIComponent(stateParam);
+
+        // New format: JSON string with accountId
+        if (decoded.startsWith("{")) {
+          const parsed = JSON.parse(decoded);
+          accountId = parsed.accountId;
+        } else {
+          // Fallback: plain accountId string
+          accountId = decoded;
+        }
+      }
     } catch (e) {
       alert("❌ Invalid OAuth state format.");
+      setLoading(false);
       navigate("/snowflake");
       return;
     }
