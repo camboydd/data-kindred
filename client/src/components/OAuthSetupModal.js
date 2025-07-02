@@ -4,71 +4,59 @@ import { useAuth } from "../context/AuthContext";
 
 const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
   const { user } = useAuth();
+  const accountId = user?.accountId;
+  const token = localStorage.getItem("token");
 
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [authUrl, setAuthUrl] = useState("");
-  const [tokenUrl, setTokenUrl] = useState("");
-  const [redirectUri, setRedirectUri] = useState(
-    "https://app.datakindred.com/oauth/callback"
-  );
-  const [scope, setScope] = useState("offline_access openid");
+  const [form, setForm] = useState({
+    clientId: "e2d1a371-4e6d-4e26-a0a4-5abcc470b200",
+    clientSecret: "vfK8Q~WlOV8AtJalX6SmToEEvMGFmnaopM1Q6b5l",
+    authUrl:
+      "https://login.microsoftonline.com/f1b746f3-5f8e-4b58-adb3-395deab7bf9a/oauth2/v2.0/authorize",
+    tokenUrl:
+      "https://login.microsoftonline.com/f1b746f3-5f8e-4b58-adb3-395deab7bf9a/oauth2/v2.0/token",
+    redirectUri: "https://app.datakindred.com/oauth/callback",
+    scope: "offline_access openid",
+    host: "tlb87607.us-east-1",
+    username: "data_engineer_user",
+    role: "programmatic_role",
+    warehouse: "COMPUTE_WH",
+  });
 
-  // New required fields for config
-  const [host, setHost] = useState("");
-  const [username, setUsername] = useState("");
-  const [role, setRole] = useState("SYSADMIN");
-  const [warehouse, setWarehouse] = useState("COMPUTE_WH");
+  const handleChange = (field) => (e) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (
-      !clientId ||
-      !clientSecret ||
-      !authUrl ||
-      !tokenUrl ||
-      !redirectUri ||
-      !host ||
-      !username ||
-      !role ||
-      !warehouse
-    ) {
-      alert("❌ All fields are required.");
+    const missing = Object.entries(form)
+      .filter(([_, v]) => !v)
+      .map(([k]) => k);
+
+    if (missing.length) {
+      alert(`❌ Missing: ${missing.join(", ")}`);
       return;
     }
 
-    const token = localStorage.getItem("token");
-    const accountId = user?.accountId;
+    const payload = { accountId, ...form };
 
-    const payload = {
-      accountId,
-      clientId,
-      clientSecret,
-      authUrl,
-      tokenUrl,
-      redirectUri,
-      scope,
-      host,
-      username,
-      role,
-      warehouse,
-    };
+    try {
+      const res = await fetch("/api/snowflake/oauth", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const res = await fetch("/api/snowflake/oauth", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      onSuccess();
-      onClose();
-      if (onCompleteRedirect) onCompleteRedirect(accountId);
-    } else {
-      alert(`❌ ${data.message}`);
+      const data = await res.json();
+      if (res.ok) {
+        onSuccess?.();
+        onClose?.();
+        onCompleteRedirect?.(accountId);
+      } else {
+        alert(`❌ ${data.message || "OAuth setup failed"}`);
+      }
+    } catch (err) {
+      alert("❌ Request failed: " + err.message);
     }
   };
 
@@ -77,81 +65,34 @@ const OAuthSetupModal = ({ onClose, onSuccess, onCompleteRedirect }) => {
       <div className="modal-content">
         <h2>Set Up OAuth Credentials</h2>
 
-        <div className="form-group">
-          <label>Client ID</label>
-          <input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-          />
-        </div>
+        {[
+          ["Client ID", "clientId"],
+          ["Client Secret", "clientSecret"],
+          ["Authorization URL", "authUrl"],
+          ["Token URL", "tokenUrl"],
+          ["Redirect URI", "redirectUri"],
+          ["Scope", "scope"],
+        ].map(([label, key]) => (
+          <div key={key} className="form-group">
+            <label>{label}</label>
+            <input value={form[key]} onChange={handleChange(key)} />
+          </div>
+        ))}
 
-        <div className="form-group">
-          <label>Client Secret</label>
-          <input
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Authorization URL</label>
-          <input value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} />
-        </div>
-
-        <div className="form-group">
-          <label>Token URL</label>
-          <input
-            value={tokenUrl}
-            onChange={(e) => setTokenUrl(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Redirect URI</label>
-          <input
-            value={redirectUri}
-            onChange={(e) => setRedirectUri(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Scope</label>
-          <input value={scope} onChange={(e) => setScope(e.target.value)} />
-        </div>
-
-        {/* New Snowflake config fields */}
         <hr />
         <h3>Snowflake Connection</h3>
 
-        <div className="form-group">
-          <label>Snowflake Host</label>
-          <input
-            placeholder="abc-xy12345.snowflakecomputing.com"
-            value={host}
-            onChange={(e) => setHost(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Username</label>
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Role</label>
-          <input value={role} onChange={(e) => setRole(e.target.value)} />
-        </div>
-
-        <div className="form-group">
-          <label>Warehouse</label>
-          <input
-            value={warehouse}
-            onChange={(e) => setWarehouse(e.target.value)}
-          />
-        </div>
+        {[
+          ["Snowflake Host", "host"],
+          ["Username", "username"],
+          ["Role", "role"],
+          ["Warehouse", "warehouse"],
+        ].map(([label, key]) => (
+          <div key={key} className="form-group">
+            <label>{label}</label>
+            <input value={form[key]} onChange={handleChange(key)} />
+          </div>
+        ))}
 
         <div className="modal-actions">
           <button className="setup-button" onClick={handleSubmit}>
