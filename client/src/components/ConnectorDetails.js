@@ -183,6 +183,17 @@ const ConnectorDetails = ({
                 )
             )}
           </select>
+          <button
+            style={{ marginTop: "1rem", color: "red" }}
+            onClick={() => {
+              localStorage.removeItem(syncKey);
+              setIsLoading(false);
+              toast.success("Manually cleared syncing state.");
+            }}
+          >
+            Force Reset Sync State
+          </button>
+
           <button onClick={handleManualSync} disabled={isLoading}>
             {isLoading ? (
               <>
