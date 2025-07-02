@@ -642,77 +642,85 @@ const handleOAuthCallback = async (req, res, next) => {
   }
 };
 
-const saveOAuthConfig = async (req, res, next) => {
-  try {
-    const {
-      accountId,
-      clientId,
-      clientSecret,
-      authUrl,
-      tokenUrl,
-      redirectUri,
-      scope,
-    } = req.body;
+const {
+  accountId,
+  clientId,
+  clientSecret,
+  authUrl,
+  tokenUrl,
+  redirectUri,
+  scope,
+  host,
+  username,
+  role,
+  warehouse,
+} = req.body;
 
-    if (
-      !accountId ||
-      !clientId ||
-      !clientSecret ||
-      !authUrl ||
-      !tokenUrl ||
-      !redirectUri
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
-    }
+if (
+  !accountId ||
+  !clientId ||
+  !clientSecret ||
+  !authUrl ||
+  !tokenUrl ||
+  !redirectUri ||
+  !host ||
+  !username ||
+  !role ||
+  !warehouse
+) {
+  return res
+    .status(400)
+    .json({ success: false, message: "Missing required fields" });
+}
 
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
-    const connection = await connectToSnowflake();
-
-    await executeQuery(
-      connection,
-      `
-      MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS target
-      USING (SELECT ? AS ACCOUNT_ID) source
-      ON target.ACCOUNT_ID = source.ACCOUNT_ID
-      WHEN MATCHED THEN UPDATE SET 
-        CLIENT_ID = ?, 
-        CLIENT_SECRET = ?, 
-        AUTH_URL = ?, 
-        TOKEN_URL = ?, 
-        REDIRECT_URI = ?, 
-        SCOPE = ?, 
-        UPDATED_AT = CURRENT_TIMESTAMP()
-      WHEN NOT MATCHED THEN INSERT (
-        ACCOUNT_ID, CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, REDIRECT_URI, SCOPE, CREATED_AT
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP())
-      `,
-      [
-        accountId,
-        clientId,
-        clientSecret,
-        authUrl,
-        tokenUrl,
-        redirectUri,
-        scope || "offline_access openid",
-        accountId,
-        clientId,
-        clientSecret,
-        authUrl,
-        tokenUrl,
-        redirectUri,
-        scope || "offline_access openid",
-      ]
-    );
-
-    return res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Failed to save OAuth config:", err);
-    next(err);
-  }
-};
+await executeQuery(
+  connection,
+  `
+  MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS target
+  USING (SELECT ? AS ACCOUNT_ID) source
+  ON target.ACCOUNT_ID = source.ACCOUNT_ID
+  WHEN MATCHED THEN UPDATE SET 
+    CLIENT_ID = ?, 
+    CLIENT_SECRET = ?, 
+    AUTH_URL = ?, 
+    TOKEN_URL = ?, 
+    REDIRECT_URI = ?, 
+    SCOPE = ?, 
+    HOST = ?, 
+    USERNAME = ?, 
+    ROLE = ?, 
+    WAREHOUSE = ?, 
+    UPDATED_AT = CURRENT_TIMESTAMP()
+  WHEN NOT MATCHED THEN INSERT (
+    ACCOUNT_ID, CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, REDIRECT_URI, SCOPE,
+    HOST, USERNAME, ROLE, WAREHOUSE, CREATED_AT
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP())
+  `,
+  [
+    accountId,
+    clientId,
+    clientSecret,
+    authUrl,
+    tokenUrl,
+    redirectUri,
+    scope || "offline_access openid",
+    host,
+    username,
+    role,
+    warehouse,
+    accountId,
+    clientId,
+    clientSecret,
+    authUrl,
+    tokenUrl,
+    redirectUri,
+    scope || "offline_access openid",
+    host,
+    username,
+    role,
+    warehouse,
+  ]
+);
 
 const getAuthMethod = async (req, res) => {
   const { accountId } = req.body;
