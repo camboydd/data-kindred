@@ -11,7 +11,14 @@ const OAuthCallbackPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
-    const accountId = query.get("state"); // ✅ this is the `state` param sent originally
+    let accountId = query.get("state");
+    try {
+      accountId = JSON.parse(accountId).accountId;
+    } catch (e) {
+      alert("❌ Invalid OAuth state format.");
+      navigate("/snowflake");
+      return;
+    }
 
     if (!code || !accountId) {
       alert("❌ Missing required OAuth parameters.");

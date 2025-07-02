@@ -668,14 +668,13 @@ async function getOAuthCredentials(accountId) {
 
 const authorizeSnowflakeOAuth = async (req, res, next) => {
   try {
-    const { accountId, redirect_uri } = req.query;
+    const { accountId } = req.query;
 
     if (!accountId) {
       throw new HttpError("Missing accountId in query", 400);
     }
 
     const connection = await connectToSnowflake();
-
     const [row] = await executeQuery(
       connection,
       `SELECT CLIENT_ID, AUTH_URL, REDIRECT_URI, SCOPE, HOST FROM KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS WHERE ACCOUNT_ID = ? LIMIT 1`,
@@ -688,45 +687,51 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
 
     const clientId = row.CLIENT_ID;
     const authUrl = row.AUTH_URL;
-    const configuredRedirectUri = row.REDIRECT_URI;
+    const redirectUri = row.REDIRECT_URI;
+    const host = row.HOST;
     const scope =
       row.SCOPE?.trim() ||
-      `https://${row.HOST}.snowflakecomputing.com/session:role-any`;
+      `https://${host}.snowflakecomputing.com/session:role-any`;
 
-    const host = row.HOST; // ✅ Fix: extract host before use
-
-    // Determine redirect_uri to use
-    const finalRedirectUri = redirect_uri || configuredRedirectUri;
-
+    const state = encodeURIComponent(JSON.stringify({ accountId }));
     const params = new URLSearchParams({
       response_type: "code",
       client_id: clientId,
-      redirect_uri: finalRedirectUri,
+      redirect_uri: redirectUri,
       scope,
+      state,
     });
 
     const fullUrl = `${authUrl}?${params.toString()}`;
-
     console.log("🌐 Redirecting to OAuth URL:", fullUrl);
+
     return res.redirect(fullUrl);
   } catch (err) {
     console.error("❌ OAuth authorization error:", err);
     return next(new HttpError("Failed to initiate OAuth flow.", 500));
   }
 };
-
 const handleOAuthCallback = async (req, res, next) => {
   try {
-    const { code, accountId } = req.body;
+    const { code, state } = req.body;
 
-    if (!code || !accountId) {
-      return next(new HttpError("Missing OAuth code or accountId", 400));
+    if (!code || !state) {
+      return next(new HttpError("Missing OAuth code or state", 400));
+    }
+
+    let accountId;
+    try {
+      const parsed = JSON.parse(state);
+      accountId = parsed.accountId;
+    } catch (err) {
+      return next(new HttpError("Invalid state format", 400));
     }
 
     const details = await getOAuthDetailsByAccountId(accountId);
     if (!details) return next(new HttpError("OAuth config not found", 404));
 
     const { token_url, client_id, client_secret, redirect_uri } = details;
+    const decryptedClientSecret = decrypt(client_secret);
 
     let tokenRes;
     try {
@@ -737,7 +742,7 @@ const handleOAuthCallback = async (req, res, next) => {
           code,
           redirect_uri,
           client_id,
-          client_secret,
+          client_secret: decryptedClientSecret,
         }),
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
@@ -750,14 +755,15 @@ const handleOAuthCallback = async (req, res, next) => {
     }
 
     const { access_token, refresh_token, expires_in } = tokenRes.data;
-    if (!access_token) return next(new HttpError("Missing access_token", 500));
+    if (!access_token) {
+      return next(new HttpError("Missing access_token", 500));
+    }
 
     const encryptedAccessToken = encrypt(access_token);
     const encryptedRefreshToken = refresh_token ? encrypt(refresh_token) : null;
 
     const connection = await connectToSnowflake();
 
-    // Save to SNOWFLAKE_OAUTH_CONFIGS
     await executeQuery(
       connection,
       `
@@ -774,7 +780,6 @@ const handleOAuthCallback = async (req, res, next) => {
       [encryptedAccessToken, encryptedRefreshToken, accountId]
     );
 
-    // Save to SNOWFLAKE_CONFIGS
     await executeQuery(
       connection,
       `
@@ -788,7 +793,6 @@ const handleOAuthCallback = async (req, res, next) => {
       [encryptedAccessToken, encryptedRefreshToken, accountId]
     );
 
-    // Mark auth method
     await executeQuery(
       connection,
       `
