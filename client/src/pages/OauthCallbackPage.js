@@ -26,6 +26,17 @@ const OAuthCallbackPage = () => {
 
       try {
         const token = localStorage.getItem("token");
+        if (!token) {
+          alert("❌ Missing auth token. Please log in again.");
+          navigate("/login");
+          return;
+        }
+
+        console.log("➡️ Sending OAuth code to backend:", { code, accountId });
+        console.log(
+          "➡️ Token from localStorage:",
+          localStorage.getItem("token")
+        );
 
         const res = await fetch("/api/snowflake/oauth/callback", {
           method: "POST",
@@ -33,7 +44,7 @@ const OAuthCallbackPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code, accountId }), // ← accountId from state param
+          body: JSON.stringify({ code, accountId }),
         });
 
         const data = await res.json();

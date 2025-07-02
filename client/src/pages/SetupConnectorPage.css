@@ -154,6 +154,7 @@ input:focus {
   border: none;
   color: #dc2626;
   cursor: pointer;
+  pointer-events: auto;
   margin-left: 1rem;
 }
 
@@ -213,4 +214,5 @@ input:focus {
   margin-top: -52px; /* aligns with setup-buttons */
   display: flex;
   justify-content: flex-end;
+  pointer-events: none;
 }

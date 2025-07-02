@@ -229,11 +229,19 @@ export const getConnectorConfig = async (req, res, next) => {
 };
 
 export const createOrUpdateConnectorConfig = async (req, res, next) => {
+  console.log("🔔 Reached createOrUpdateConnectorConfig()");
   const { connectorId, sourceCredentials, accountId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
-  if (!connectorId || !sourceCredentials) {
-    return next(new HttpError("Missing connectorId or credentials", 400));
+  if (!connectorId || !sourceCredentials || !accountId) {
+    console.error("❌ Missing connectorId or accountId or credentials:", {
+      connectorId,
+      accountId,
+      sourceCredentials,
+    });
+    return next(
+      new HttpError("Missing connectorId, accountId, or credentials", 400)
+    );
   }
 
   const connector = CONNECTOR_API_MAP[connectorId];
@@ -254,13 +262,13 @@ export const createOrUpdateConnectorConfig = async (req, res, next) => {
   }
 
   const credentialKeys = Object.keys(encryptedCredentials);
-  const configId = uuidv4(); // Use if inserting
+  const configId = uuidv4();
 
-  console.log("Inserting connector config with:", {
+  console.log("📦 Preparing to save connector config:", {
     id: configId,
     accountId,
     connectorId,
-    sourceCredentials: encryptedCredentials,
+    encryptedCredentials,
   });
 
   try {
@@ -273,44 +281,49 @@ export const createOrUpdateConnectorConfig = async (req, res, next) => {
       [accountId, connectorId]
     );
 
+    console.log("🔎 existing config check returned:", existing);
+
     let action = "created_connector_config";
 
     if (existing.length > 0) {
+      console.log("✏️ Running UPDATE for existing config");
       await executeQuery(
         connection,
-        `UPDATE KINDRED.PUBLIC.CONNECTOR_CONFIGS
-         SET SOURCE_CREDENTIALS_VARIANT = PARSE_JSON(?), UPDATED_AT = CURRENT_TIMESTAMP()
-         WHERE ID = ?`,
+        `
+        UPDATE KINDRED.PUBLIC.CONNECTOR_CONFIGS
+        SET 
+          SOURCE_CREDENTIALS_VARIANT = PARSE_JSON(?),
+          UPDATED_AT = CURRENT_TIMESTAMP()
+        WHERE ID = ?
+        `,
         [JSON.stringify(encryptedCredentials), existing[0].ID]
       );
+
       action = "updated_connector_config";
     } else {
+      console.log("📥 Running INSERT for new config");
       await executeQuery(
         connection,
-        `INSERT INTO KINDRED.PUBLIC.CONNECTOR_CONFIGS
-         (ID, ACCOUNT_ID, CONNECTOR_ID, SOURCE_CREDENTIALS_VARIANT)
-         SELECT ?, ?, ?, PARSE_JSON(?)`,
+        `
+          INSERT INTO KINDRED.PUBLIC.CONNECTOR_CONFIGS (ID, ACCOUNT_ID, CONNECTOR_ID, SOURCE_CREDENTIALS_VARIANT)
+          SELECT ?, ?, ?, PARSE_JSON(?)
+        `,
         [configId, accountId, connectorId, JSON.stringify(encryptedCredentials)]
       );
     }
 
     await logAuditEvent({
-      accountId, // ← affected entity
+      accountId,
       actorEmail: req.user?.email || "system",
       initiatorEmail: req.user?.email,
       initiatorAccountId: req.user?.accountId,
       action,
       targetEntity: `${accountId}:${connectorId}`,
       status: "success",
-      metadata: {
-        connectorId,
-        accountId,
-        encryptedFields: credentialKeys,
-        ip,
-      },
     });
 
-    res.status(200).json({ message: "Connector config saved." });
+    console.log("✅ DB update or insert succeeded");
+    res.status(200).json({ success: true, message: "Connector config saved." });
   } catch (err) {
     console.error("❌ Error saving connector config:", err);
 
@@ -322,12 +335,6 @@ export const createOrUpdateConnectorConfig = async (req, res, next) => {
       action: "save_connector_config",
       targetEntity: `${accountId}:${connectorId}`,
       status: "fail",
-      metadata: {
-        connectorId,
-        accountId,
-        error: err.message,
-        ip,
-      },
     });
 
     return next(new HttpError("Failed to save connector config.", 500));

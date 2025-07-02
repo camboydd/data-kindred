@@ -18,7 +18,7 @@ export const checkConnectorLimit = async (req, res, next) => {
     const conn = await connectToSnowflake();
     const result = await executeQuery(
       conn,
-      `SELECT COUNT(*) AS count FROM KINDRED.PUBLIC.CONNECTORS WHERE ACCOUNT_ID = ?`,
+      `SELECT COUNT(*) AS count FROM KINDRED.PUBLIC.CONNECTOR_CONFIGS WHERE ACCOUNT_ID = ?`,
       [accountId]
     );
     const currentCount = result[0]?.COUNT ?? 0;

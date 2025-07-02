@@ -491,29 +491,42 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
       token: config.AUTH_METHOD === "oauth" ? accessToken : undefined,
     };
 
-    const connectWithTimeout = () =>
+    const conn = snowflake.createConnection(connectionConfig);
+
+    // 🧠 Promisify connection.connect()
+    const connect = () =>
       new Promise((resolve, reject) => {
-        const conn = snowflake.createConnection(connectionConfig);
-        const timeout = setTimeout(() => {
-          reject(new Error("Connection timed out (8s)."));
-        }, 8000);
         conn.connect((err) => {
-          clearTimeout(timeout);
           if (err) return reject(err);
-          resolve(conn);
+          resolve();
+        });
+      });
+
+    // 🧠 Promisify a simple test query
+    const testQuery = () =>
+      new Promise((resolve, reject) => {
+        conn.execute({
+          sqlText: "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()",
+          complete: (err, stmt, rows) => {
+            if (err) return reject(err);
+            resolve(rows);
+          },
         });
       });
 
     try {
-      await connectWithTimeout();
+      await connect();
+      await testQuery();
+      conn.destroy(() => {});
       return res.status(200).json({ isConfigured: true });
     } catch (err) {
-      console.warn("🔁 Initial connection failed:", err.message);
+      console.warn("🔁 Initial test failed:", err.message);
 
+      // OAuth token expired? Retry with refresh token
       if (
         config.AUTH_METHOD === "oauth" &&
         refreshToken &&
-        err.message.includes("JWT") // Snowflake returns JWT error when token is expired
+        err.message.includes("JWT")
       ) {
         console.log("🔄 Attempting token refresh...");
         const creds = await getOAuthCredentials(accountId);
@@ -537,7 +550,6 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
         const newAccessToken = tokenRes.data.access_token;
         const encryptedAccessToken = encrypt(newAccessToken);
 
-        // Update the DB with new token
         await executeQuery(
           connection,
           `UPDATE KINDRED.PUBLIC.SNOWFLAKE_CONFIGS
@@ -547,19 +559,44 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
         );
 
         // Retry connection with new token
-        connectionConfig.token = newAccessToken;
-        await connectWithTimeout();
+        const refreshedConn = snowflake.createConnection({
+          ...connectionConfig,
+          token: newAccessToken,
+        });
 
+        await new Promise((resolve, reject) => {
+          refreshedConn.connect((err) => {
+            if (err) return reject(err);
+            resolve();
+          });
+        });
+
+        await new Promise((resolve, reject) => {
+          refreshedConn.execute({
+            sqlText:
+              "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()",
+            complete: (err, stmt, rows) => {
+              if (err) return reject(err);
+              resolve(rows);
+            },
+          });
+        });
+
+        refreshedConn.destroy(() => {});
         return res.status(200).json({ isConfigured: true });
       }
 
-      throw err;
+      // ❌ If all fails, return gracefully
+      return res.status(200).json({
+        isConfigured: false,
+        error: err.message || "Connection check failed",
+      });
     }
   } catch (err) {
-    console.error("❌ Snowflake config validation failed:", err.message || err);
+    console.error("❌ Unexpected failure:", err.message || err);
     return res.status(200).json({
       isConfigured: false,
-      error: err.message || "Connection check failed",
+      error: err.message || "Unknown error",
     });
   }
 };

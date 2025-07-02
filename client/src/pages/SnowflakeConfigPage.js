@@ -62,10 +62,9 @@ const SnowflakeConfigPage = () => {
     const fetchExistingConfig = async () => {
       try {
         const res = await authFetch("/api/snowflake/configs", {
-          method: "POST",
+          method: "GET",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountId: user.accountId }),
         });
 
         if (res.ok) {
@@ -105,14 +104,23 @@ const SnowflakeConfigPage = () => {
         });
 
         const data = await res.json();
-        if (res.ok && data.isConfigured) {
-          setIsConfigured(true);
-          setConnectionStatus("success");
+
+        if (res.ok) {
+          if (data.isConfigured) {
+            setIsConfigured(true);
+            setConnectionStatus("success");
+          } else {
+            setIsConfigured(false);
+            setConnectionStatus("error"); // 🧠 This was missing
+          }
+        } else {
+          setConnectionStatus("error");
         }
       } catch (err) {
         console.error("Error fetching Snowflake config status:", err);
+        setConnectionStatus("error");
       } finally {
-        setStatusLoading(false);
+        setStatusLoading(false); // ✅ Always clear spinner
       }
     };
 

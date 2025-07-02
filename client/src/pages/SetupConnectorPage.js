@@ -201,7 +201,12 @@ const SetupConnectorPage = () => {
         body: JSON.stringify(payload),
       });
 
-      if (!saveRes.ok) throw new Error("Connector setup failed");
+      const saveData = await saveRes.json();
+
+      if (!saveRes.ok || !saveData.success) {
+        console.error("❌ Save response failed:", saveData);
+        throw new Error("Connector setup failed.");
+      }
 
       setStatus("success");
       setDefaultValues(JSON.parse(JSON.stringify(sourceValues)));

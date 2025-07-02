@@ -83,6 +83,7 @@ const ConnectorDetails = ({
   }, [isLoading, connector?.connectorId]);
 
   const triggerSync = async () => {
+    setShowSyncWarning(false);
     setIsLoading(true);
     localStorage.setItem(syncKey, "true");
     const toastId = toast.loading("Syncing...");
