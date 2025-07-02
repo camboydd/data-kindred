@@ -39,17 +39,19 @@ const ConnectorDetails = ({
   useEffect(() => {
     const latest = logs
       ?.filter((l) => l.completedAt || l.startedAt)
-      .sort((a, b) => {
-        const dateA = new Date(a.completedAt || a.startedAt);
-        const dateB = new Date(b.completedAt || b.startedAt);
-        return dateB - dateA;
-      })[0];
+      .sort(
+        (a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0)
+      )[0];
 
     const stillRunning =
       latest?.status === "in_progress" ||
       (!latest?.completedAt && !!latest?.startedAt);
 
-    if (stillRunning) {
+    const tooOld =
+      latest?.startedAt &&
+      new Date() - new Date(latest.startedAt) > 1000 * 60 * 30; // over 30 min
+
+    if (stillRunning && !tooOld) {
       setIsLoading(true);
       localStorage.setItem(syncKey, "true");
     } else {
