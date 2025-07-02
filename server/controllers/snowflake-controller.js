@@ -299,7 +299,7 @@ const testSnowflakeConnection = async (req, res, next) => {
     authMethod,
   } = req.body;
 
-  console.log("🧪 Starting testSnowflakeConnection...");
+  console.log("🧪 Starting testSnowflakeConnection for account:", account);
 
   if (!account || !username || !authMethod) {
     return next(
@@ -326,7 +326,7 @@ const testSnowflakeConnection = async (req, res, next) => {
     } else if (authMethod === "keypair") {
       if (!privateKey) {
         return next(
-          new HttpError("Missing private key for key pair authentication.", 400)
+          new HttpError("Missing private key for keypair auth.", 400)
         );
       }
 
@@ -344,6 +344,10 @@ const testSnowflakeConnection = async (req, res, next) => {
 
         connectionConfig.authenticator = "SNOWFLAKE_JWT";
       } catch (keyErr) {
+        console.error(
+          "❌ Invalid private key format:",
+          keyErr.message || keyErr
+        );
         return next(new HttpError("Invalid private key format.", 400));
       }
     } else if (authMethod === "oauth") {
@@ -358,21 +362,18 @@ const testSnowflakeConnection = async (req, res, next) => {
 
     const testConnection = snowflake.createConnection(connectionConfig);
 
-    // Add timeout to prevent indefinite hangs
-    const connectWithTimeout = new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("Check Snowflake Account"));
+        reject(new Error("Snowflake connect timeout"));
       }, 10000);
 
-      testConnection.connect((err, conn) => {
+      testConnection.connect((err) => {
         clearTimeout(timeout);
         if (err) return reject(err);
         console.log("✅ Connected to Snowflake");
-        resolve(conn);
+        resolve();
       });
     });
-
-    await connectWithTimeout;
 
     await new Promise((resolve, reject) => {
       testConnection.execute({
@@ -380,7 +381,7 @@ const testSnowflakeConnection = async (req, res, next) => {
         complete: (err, stmt, rows) => {
           if (err) return reject(err);
           console.log("✅ Test query result:", rows);
-          resolve();
+          resolve(rows);
         },
       });
     });
@@ -492,9 +493,12 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
       token: config.AUTH_METHOD === "oauth" ? accessToken : undefined,
     };
 
+    console.log("🔧 Connection Config:", connectionConfig);
+    console.log("🔐 Access Token (first 10):", accessToken?.slice(0, 10));
+    console.log("🔐 Refresh Token (first 10):", refreshToken?.slice(0, 10));
+
     const conn = snowflake.createConnection(connectionConfig);
 
-    // 🧠 Promisify connection.connect()
     const connect = () =>
       new Promise((resolve, reject) => {
         conn.connect((err) => {
@@ -503,7 +507,6 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
         });
       });
 
-    // 🧠 Promisify a simple test query
     const testQuery = () =>
       new Promise((resolve, reject) => {
         conn.execute({
@@ -523,29 +526,53 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
     } catch (err) {
       console.warn("🔁 Initial test failed:", err.message);
 
-      // OAuth token expired? Retry with refresh token
       if (
         config.AUTH_METHOD === "oauth" &&
         refreshToken &&
         /jwt|oauth|token|expired|invalid/i.test(err.message)
       ) {
         console.log("🔄 Attempting token refresh...");
+
         const creds = await getOAuthCredentials(accountId);
-        const tokenRes = await axios.post(
-          creds.token_url,
-          qs.stringify({
-            grant_type: "refresh_token",
-            refresh_token: refreshToken,
-            client_id: creds.client_id,
-            client_secret: creds.client_secret,
-          }),
-          {
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          }
+
+        console.log(
+          "🔍 Using refresh token:",
+          refreshToken?.slice(0, 10) + "..."
+        );
+        console.log("🔍 Using client_id:", creds.client_id);
+        console.log(
+          "🔍 Using decrypted client_secret:",
+          creds.client_secret?.slice(0, 10) + "..."
         );
 
+        let tokenRes;
+        try {
+          tokenRes = await axios.post(
+            creds.token_url,
+            qs.stringify({
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+              client_id: creds.client_id,
+              client_secret: creds.client_secret,
+            }),
+            {
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            }
+          );
+        } catch (err) {
+          console.error("❌ Token refresh failed:", err.response?.data || err);
+          return res.status(200).json({
+            isConfigured: false,
+            error: "Token refresh failed: Invalid OAuth access token.",
+          });
+        }
+
         if (!tokenRes.data.access_token) {
-          throw new Error("Token refresh failed: No access_token returned.");
+          console.error("❌ Token refresh response invalid:", tokenRes.data);
+          return res.status(200).json({
+            isConfigured: false,
+            error: "Token refresh failed: No access_token returned.",
+          });
         }
 
         const newAccessToken = tokenRes.data.access_token;
@@ -559,7 +586,6 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
           [encryptedAccessToken, accountId]
         );
 
-        // Retry connection with new token
         const refreshedConn = snowflake.createConnection({
           ...connectionConfig,
           token: newAccessToken,
@@ -587,7 +613,6 @@ const getSnowflakeConfigStatus = async (req, res, next) => {
         return res.status(200).json({ isConfigured: true });
       }
 
-      // ❌ If all fails, return gracefully
       return res.status(200).json({
         isConfigured: false,
         error: err.message || "Connection check failed",
@@ -619,14 +644,25 @@ async function getOAuthCredentials(accountId) {
     throw new Error("OAuth config not found for account");
   }
 
-  if (!rows[0].CLIENT_SECRET) {
-    throw new Error("CLIENT_SECRET is undefined in SNOWFLAKE_OAUTH_CONFIGS");
+  const { CLIENT_ID, CLIENT_SECRET, TOKEN_URL } = rows[0];
+
+  if (!CLIENT_SECRET) {
+    throw new Error("CLIENT_SECRET is missing from SNOWFLAKE_OAUTH_CONFIGS");
+  }
+
+  let decryptedSecret;
+  try {
+    decryptedSecret = decrypt(CLIENT_SECRET);
+    if (!decryptedSecret) throw new Error("Decryption returned empty string");
+  } catch (err) {
+    console.error("❌ Failed to decrypt CLIENT_SECRET:", err);
+    throw new Error("Failed to decrypt client secret");
   }
 
   return {
-    client_id: rows[0].CLIENT_ID,
-    client_secret: decrypt(rows[0].CLIENT_SECRET),
-    token_url: rows[0].TOKEN_URL,
+    client_id: CLIENT_ID,
+    client_secret: decryptedSecret,
+    token_url: TOKEN_URL,
   };
 }
 
@@ -650,9 +686,9 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
       client_id,
       response_type: "code",
       redirect_uri,
-      scope,
+      scope: `https://${host}.snowflakecomputing.com/session:role-any`,
       response_mode: "query",
-      state: accountId, // send raw accountId
+      state: accountId,
     });
 
     return res.redirect(`${auth_url}?${params}`);
@@ -721,7 +757,7 @@ const handleOAuthCallback = async (req, res, next) => {
       [encryptedAccessToken, encryptedRefreshToken, accountId]
     );
 
-    // Save to SNOWFLAKE_CONFIGS (main connector config)
+    // Save to SNOWFLAKE_CONFIGS
     await executeQuery(
       connection,
       `
@@ -735,7 +771,7 @@ const handleOAuthCallback = async (req, res, next) => {
       [encryptedAccessToken, encryptedRefreshToken, accountId]
     );
 
-    // Ensure auth method is marked as oauth
+    // Mark auth method
     await executeQuery(
       connection,
       `
@@ -756,7 +792,7 @@ const handleOAuthCallback = async (req, res, next) => {
       message: "✅ OAuth connection successful. You can now close this window.",
     });
   } catch (err) {
-    console.error("❌ OAuth callback unexpected failure:", err.message || err);
+    console.error("❌ OAuth callback failure:", err.message || err);
     return next(new HttpError("OAuth callback failed", 500));
   }
 };
@@ -770,11 +806,11 @@ const saveOAuthConfig = async (req, res, next) => {
       authUrl,
       tokenUrl,
       redirectUri,
-      scope,
       host,
       username,
       role,
       warehouse,
+      scope: userScope,
     } = req.body;
 
     if (
@@ -789,14 +825,33 @@ const saveOAuthConfig = async (req, res, next) => {
       !role ||
       !warehouse
     ) {
+      console.warn("⚠️ Missing required fields in request:", {
+        accountId,
+        clientId,
+        clientSecret: !!clientSecret,
+        authUrl,
+        tokenUrl,
+        redirectUri,
+        host,
+        username,
+        role,
+        warehouse,
+      });
       return res
         .status(400)
         .json({ success: false, message: "Missing required fields" });
     }
 
+    const scope =
+      userScope?.trim() ||
+      `https://${host}.snowflakecomputing.com/session:role-any`;
+
+    const encryptedClientSecret = encrypt(clientSecret);
+
     const connection = await connectToSnowflake();
 
-    const encryptedClientSecret = encrypt(clientSecret); // ✅ encrypt before storing
+    console.log("🔐 Saving OAuth config for account:", accountId);
+    console.log("🔧 Final scope:", scope);
 
     await executeQuery(
       connection,
@@ -824,22 +879,22 @@ const saveOAuthConfig = async (req, res, next) => {
       [
         accountId,
         clientId,
-        encryptedClientSecret, // ✅
+        encryptedClientSecret,
         authUrl,
         tokenUrl,
         redirectUri,
-        scope || "offline_access openid",
+        scope,
         host,
         username,
         role,
         warehouse,
         accountId,
         clientId,
-        encryptedClientSecret, // ✅
+        encryptedClientSecret,
         authUrl,
         tokenUrl,
         redirectUri,
-        scope || "offline_access openid",
+        scope,
         host,
         username,
         role,
@@ -847,16 +902,21 @@ const saveOAuthConfig = async (req, res, next) => {
       ]
     );
 
+    console.log("✅ OAuth config saved successfully.");
     return res.json({ success: true });
   } catch (err) {
-    console.error("❌ Failed to save OAuth config:", err);
-    next(err);
+    console.error("❌ Failed to save OAuth config:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return next(err);
   }
 };
+
 const getAuthMethod = async (req, res) => {
   const accountId = req.user?.accountId;
 
-  console.log("✅ getAuthMethod hit with accountId:", req.body.accountId);
+  console.log("✅ getAuthMethod hit with accountId:", req.user?.accountId);
   const connection = await connectToSnowflake();
 
   const result = await executeQuery(
