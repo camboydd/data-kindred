@@ -711,6 +711,7 @@ const authorizeSnowflakeOAuth = async (req, res, next) => {
     return next(new HttpError("Failed to initiate OAuth flow.", 500));
   }
 };
+
 const handleOAuthCallback = async (req, res, next) => {
   try {
     const { code, state } = req.body;
@@ -721,10 +722,14 @@ const handleOAuthCallback = async (req, res, next) => {
 
     let accountId;
     try {
-      const parsed = JSON.parse(state);
-      accountId = parsed.accountId;
-    } catch (err) {
-      return next(new HttpError("Invalid state format", 400));
+      const decoded = decodeURIComponent(state);
+      if (decoded.startsWith("{")) {
+        accountId = JSON.parse(decoded).accountId;
+      } else {
+        accountId = decoded;
+      }
+    } catch (e) {
+      return next(new HttpError("Invalid OAuth state format", 400));
     }
 
     const details = await getOAuthDetailsByAccountId(accountId);

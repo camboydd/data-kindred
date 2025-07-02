@@ -6,36 +6,13 @@ import "./OAuthCallbackPage.css";
 const OAuthCallbackPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const hasRunRef = useRef(false);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code");
     const stateParam = query.get("state");
-    let accountId = null;
 
-    try {
-      // ✅ Properly decode and parse `state`
-      if (stateParam) {
-        const decoded = decodeURIComponent(stateParam);
-
-        // New format: JSON string with accountId
-        if (decoded.startsWith("{")) {
-          const parsed = JSON.parse(decoded);
-          accountId = parsed.accountId;
-        } else {
-          // Fallback: plain accountId string
-          accountId = decoded;
-        }
-      }
-    } catch (e) {
-      alert("❌ Invalid OAuth state format.");
-      setLoading(false);
-      navigate("/snowflake");
-      return;
-    }
-
-    if (!code || !accountId) {
+    if (!code || !stateParam) {
       alert("❌ Missing required OAuth parameters.");
       setLoading(false);
       navigate("/snowflake");
@@ -50,7 +27,10 @@ const OAuthCallbackPage = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code, accountId }),
+          body: JSON.stringify({
+            code,
+            state: stateParam, // Send raw `state` string as-is
+          }),
         });
 
         const data = await res.json();
