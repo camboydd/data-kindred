@@ -23,6 +23,71 @@ function ensurePEMFormat(base64Key) {
   )}\n-----END PRIVATE KEY-----`;
 }
 
+async function upsertSnowflakeConfigFromOAuth(
+  accountId,
+  oauthToken,
+  refreshToken
+) {
+  const conn = await connectToSnowflake();
+
+  const [row] = await executeQuery(
+    conn,
+    `
+    SELECT HOST, ROLE, USERNAME, WAREHOUSE
+    FROM KINDRED.PUBLIC.SNOWFLAKE_OAUTH_CONFIGS
+    WHERE ACCOUNT_ID = ?
+    `,
+    [accountId]
+  );
+
+  if (!row) throw new Error("Missing base config data for account");
+
+  const id = uuidv4();
+
+  const encryptedAccess = encrypt(oauthToken);
+  const encryptedRefresh = encrypt(refreshToken);
+
+  await executeQuery(
+    conn,
+    `
+    MERGE INTO KINDRED.PUBLIC.SNOWFLAKE_CONFIGS target
+    USING (SELECT ? AS ACCOUNT_ID) source
+    ON target.ACCOUNT_ID = source.ACCOUNT_ID
+    WHEN MATCHED THEN UPDATE SET
+      HOST = ?, USERNAME = ?, ROLE = ?, WAREHOUSE = ?,
+      AUTH_METHOD = 'oauth',
+      OAUTH_ACCESS_TOKEN_ENCRYPTED = ?, 
+      OAUTH_REFRESH_TOKEN_ENCRYPTED = ?, 
+      UPDATED_AT = CURRENT_TIMESTAMP()
+    WHEN NOT MATCHED THEN INSERT (
+      ID, ACCOUNT_ID, HOST, USERNAME, ROLE, WAREHOUSE, AUTH_METHOD,
+      OAUTH_ACCESS_TOKEN_ENCRYPTED, OAUTH_REFRESH_TOKEN_ENCRYPTED,
+      CREATED_AT, UPDATED_AT
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?, 'oauth',
+      ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+    )
+    `,
+    [
+      accountId,
+      row.HOST,
+      row.USERNAME,
+      row.ROLE,
+      row.WAREHOUSE,
+      encryptedAccess,
+      encryptedRefresh,
+      id,
+      accountId,
+      row.HOST,
+      row.USERNAME,
+      row.ROLE,
+      row.WAREHOUSE,
+      encryptedAccess,
+      encryptedRefresh,
+    ]
+  );
+}
+
 const getSnowflakeConfigs = async (req, res, next) => {
   const accountId = req.user?.accountId;
   if (!accountId) {
@@ -549,6 +614,19 @@ const handleOAuthCallback = async (req, res, next) => {
     } catch (e) {
       console.error("❌ Failed to update SNOWFLAKE_AUTH_METHOD:", e);
       return next(new HttpError("Failed to update auth method", 500));
+    }
+
+    try {
+      console.log("🧩 Inserting/updating SNOWFLAKE_CONFIGS for:", accountId);
+      await upsertSnowflakeConfigFromOAuth(
+        accountId,
+        access_token,
+        refresh_token
+      );
+      console.log("✅ Upserted SNOWFLAKE_CONFIGS row");
+    } catch (e) {
+      console.error("❌ Failed to upsert SNOWFLAKE_CONFIGS:", e);
+      return next(new HttpError("Failed to store Snowflake config", 500));
     }
 
     console.log("🎉 Responding to client: OAuth success");
